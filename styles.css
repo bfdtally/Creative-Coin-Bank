@@ -43,17 +43,19 @@ button {
 }
 
 .topbar {
-  display: flex;
+  display: grid;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-  padding: 22px clamp(16px, 4vw, 42px);
+  justify-content: center;
+  gap: 14px;
+  padding: 22px clamp(16px, 4vw, 42px) 18px;
   border-bottom: 1px solid rgba(112, 89, 49, 0.16);
+  text-align: center;
 }
 
 .brand {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 22px;
 }
 
@@ -85,6 +87,7 @@ p {
 
 .toolbar {
   display: flex;
+  justify-content: center;
   gap: 8px;
 }
 
@@ -541,7 +544,6 @@ button:focus-visible {
 }
 
 @media (max-width: 760px) {
-  .topbar,
   .section-heading {
     align-items: stretch;
     flex-direction: column;
@@ -550,7 +552,6 @@ button:focus-visible {
   .topbar {
     align-items: center;
     padding-top: 24px;
-    text-align: center;
   }
 
   .brand-logo {
@@ -560,7 +561,6 @@ button:focus-visible {
 
   .brand {
     align-items: center;
-    flex-direction: column;
     gap: 8px;
   }
 
@@ -582,6 +582,10 @@ button:focus-visible {
 }
 
 @media (max-width: 460px) {
+  .brand {
+    flex-direction: column;
+  }
+
   .students-grid,
   .balance-card {
     grid-template-columns: 1fr;
