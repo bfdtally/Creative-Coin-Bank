@@ -166,7 +166,7 @@ function renderDetail() {
 
 function renderJar(balance) {
   dom.detailJar.querySelectorAll(".jar-coin").forEach((coin) => coin.remove());
-  const count = Math.min(7, Math.max(1, Math.ceil(balance / 4)));
+  const count = Math.min(7, Math.max(1, Math.floor(balance)));
   const spots = [
     [26, 67],
     [43, 75],
@@ -717,6 +717,8 @@ dom.viewButtons.forEach((button) => {
 
 dom.classActions.forEach((button) => {
   button.addEventListener("click", () => {
+    const student = selectedStudent();
+    if (!student) return;
     const action = button.dataset.classAction;
     const presets = {
       bonus: [5, "Happy Helper"],
@@ -724,7 +726,7 @@ dom.classActions.forEach((button) => {
       cleanup: [2, "Clean Up"]
     };
     const [amount, reason] = presets[action];
-    state.students.forEach((student) => addTransaction(student, "earn", amount, reason));
+    addTransaction(student, "earn", amount, reason);
     render();
   });
 });

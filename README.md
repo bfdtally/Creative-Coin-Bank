@@ -7,7 +7,7 @@ Piggy Bank is a fresh, simpler classroom banking app for younger students. It us
 - Teacher name and classroom roster
 - Big student piggy bank cards
 - Earn and spend Creative Coin actions
-- Whole-class quick actions
+- Selected-saver quick actions
 - Visual Creative Coin jars
 - Student money story statements
 - Printable class cards
@@ -18,7 +18,7 @@ Piggy Bank is a fresh, simpler classroom banking app for younger students. It us
 - Creative Coin logo in `assets/creative-coin-logo.png`
 - Little Savers pig icon in `assets/little-saver-pig-icon.png`
 - Balance panel pig icon in `assets/balance-pig.png`
-- Offline app shell through `piggy-bank-v16` service worker cache
+- Offline app shell through `piggy-bank-v17` service worker cache
 
 ## Render
 

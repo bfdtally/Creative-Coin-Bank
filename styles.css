@@ -44,6 +44,7 @@ button {
 
 .topbar {
   display: grid;
+  grid-template-columns: 1fr;
   grid-template-rows: auto auto;
   align-items: center;
   justify-items: center;
@@ -60,7 +61,8 @@ button {
   align-items: center;
   justify-content: center;
   gap: 22px;
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .brand-logo {
@@ -94,7 +96,8 @@ p {
   grid-row: 2;
   justify-content: center;
   gap: 8px;
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .icon-button {
