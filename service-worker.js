@@ -1,13 +1,14 @@
-const CACHE_NAME = "piggy-bank-v13";
+const CACHE_NAME = "piggy-bank-v16";
 const APP_SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=13",
-  "./app.js?v=13",
-  "./manifest.webmanifest?v=13",
+  "./styles.css?v=16",
+  "./app.js?v=16",
+  "./manifest.webmanifest?v=16",
   "./assets/creative-coin-logo.png",
   "./assets/little-saver-pig.png",
-  "./assets/little-saver-pig-icon.png"
+  "./assets/little-saver-pig-icon.png",
+  "./assets/balance-pig.png"
 ];
 
 self.addEventListener("install", (event) => {

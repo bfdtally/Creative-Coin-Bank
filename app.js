@@ -166,14 +166,23 @@ function renderDetail() {
 
 function renderJar(balance) {
   dom.detailJar.querySelectorAll(".jar-coin").forEach((coin) => coin.remove());
-  const count = Math.min(12, Math.max(1, Math.ceil(balance / 4)));
-  for (let index = 0; index < count; index += 1) {
+  const count = Math.min(7, Math.max(1, Math.ceil(balance / 4)));
+  const spots = [
+    [26, 67],
+    [43, 75],
+    [62, 80],
+    [82, 78],
+    [101, 70],
+    [48, 58],
+    [72, 62]
+  ];
+  spots.slice(0, count).forEach(([left, top]) => {
     const coin = document.createElement("span");
     coin.className = "jar-coin";
-    coin.style.left = `${18 + (index % 4) * 15}px`;
-    coin.style.top = `${42 - Math.floor(index / 4) * 10}px`;
+    coin.style.left = `${left}px`;
+    coin.style.top = `${top}px`;
     dom.detailJar.append(coin);
-  }
+  });
 }
 
 function statementItem(item) {
