@@ -1,743 +1,1046 @@
-const STORAGE_KEY = "piggy-bank-state-v1";
+const LEGACY_STORAGE_KEY = "classbank.students.v1";
+const DATABASE_KEY = "classbank.database.v2";
+const ACTIVE_TEACHER_KEY = "classbank.activeTeacher.v2";
 
-const starterState = {
-  teacher: "Ms. Sunny",
-  selectedId: "mila",
-  view: "banks",
-  students: [
-    {
-      id: "mila",
-      name: "Mila",
-      balance: 18,
-      entries: [
-        entry("earn", 10, "Payday"),
-        entry("earn", 5, "Kind Choice"),
-        entry("earn", 3, "Reading Time")
-      ]
-    },
-    {
-      id: "jay",
-      name: "Jay",
-      balance: 11,
-      entries: [entry("earn", 10, "Payday"), entry("earn", 1, "Helping Friend")]
-    },
-    {
-      id: "nora",
-      name: "Nora",
-      balance: 7,
-      entries: [entry("earn", 10, "Payday"), entry("spend", 3, "Store Buy")]
-    }
-  ]
+const currencySymbols = {
+  USD: "$",
+  EUR: "EUR",
+  GBP: "GBP",
+  CAD: "CAD",
+  AUD: "AUD",
+  JPY: "JPY",
+  GHS: "GHS",
+  NGN: "NGN",
+  ZAR: "ZAR",
+  KES: "KES",
+  INR: "INR",
+  PHP: "PHP",
+  CREATIVE: "Creative"
 };
 
-let state = loadState();
-let chosenAmount = 1;
-let scannerStream = null;
-let scannerLoop = 0;
-
-const dom = {
-  teacherName: document.querySelector("#teacherName"),
-  studentForm: document.querySelector("#studentForm"),
-  studentName: document.querySelector("#studentName"),
-  studentsGrid: document.querySelector("#studentsGrid"),
-  classSummary: document.querySelector("#classSummary"),
-  template: document.querySelector("#studentCardTemplate"),
-  emptyState: document.querySelector("#emptyState"),
-  studentDetail: document.querySelector("#studentDetail"),
-  detailName: document.querySelector("#detailName"),
-  detailBalance: document.querySelector("#detailBalance"),
-  detailJar: document.querySelector("#detailJar"),
-  amountButtons: document.querySelectorAll("[data-amount]"),
-  customAmount: document.querySelector("#customAmount"),
-  reason: document.querySelector("#reason"),
-  moneyForm: document.querySelector("#moneyForm"),
-  statementList: document.querySelector("#statementList"),
-  scanCode: document.querySelector("#scanCode"),
-  scannerModal: document.querySelector("#scannerModal"),
-  scannerVideo: document.querySelector("#scannerVideo"),
-  scannerStatus: document.querySelector("#scannerStatus"),
-  closeScanner: document.querySelector("#closeScanner"),
-  deleteStudent: document.querySelector("#deleteStudent"),
-  resetStudent: document.querySelector("#resetStudent"),
-  printOne: document.querySelector("#printOne"),
-  printCards: document.querySelector("#printCards"),
-  downloadDogTag: document.querySelector("#downloadDogTag"),
-  downloadSvg: document.querySelector("#downloadSvg"),
-  exportData: document.querySelector("#exportData"),
-  importData: document.querySelector("#importData"),
-  viewButtons: document.querySelectorAll("[data-view]"),
-  classActions: document.querySelectorAll("[data-class-action]")
+const state = {
+  db: { teachers: [] },
+  activeTeacherId: null,
+  students: [],
+  currency: "USD",
+  stream: null,
+  scanTimer: null,
+  detector: null,
+  deferredInstallPrompt: null
 };
 
-function entry(type, amount, reason) {
-  return {
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
-    type,
-    amount,
-    reason,
-    at: new Date().toISOString()
+const memoryStorage = new Map();
+const appRoot = document.currentScript?.previousElementSibling?.id === "classbank-root"
+  ? document.currentScript.previousElementSibling
+  : document.querySelector("#classbank-root") || document;
+
+let els = {};
+
+function collectElements() {
+  els = {
+    teacherSelect: appRoot.querySelector("#teacherSelect"),
+    teacherName: appRoot.querySelector("#teacherName"),
+    createTeacher: appRoot.querySelector("#createTeacher"),
+    exportTeacherData: appRoot.querySelector("#exportTeacherData"),
+    importTeacherData: appRoot.querySelector("#importTeacherData"),
+    importTeacherFile: appRoot.querySelector("#importTeacherFile"),
+    installApp: appRoot.querySelector("#installApp"),
+    studentNames: appRoot.querySelector("#studentNames"),
+    currencySelect: appRoot.querySelector("#currencySelect"),
+    generateCards: appRoot.querySelector("#generateCards"),
+    clearAll: appRoot.querySelector("#clearAll"),
+    printCards: appRoot.querySelector("#printCards"),
+    downloadSvgSheet: appRoot.querySelector("#downloadSvgSheet"),
+    downloadSvgCards: appRoot.querySelector("#downloadSvgCards"),
+    teacherBadge: appRoot.querySelector("#teacherBadge"),
+    studentCount: appRoot.querySelector("#studentCount"),
+    currencyBadge: appRoot.querySelector("#currencyBadge"),
+    cardsGrid: appRoot.querySelector("#cardsGrid"),
+    accountStudent: appRoot.querySelector("#accountStudent"),
+    transactionType: appRoot.querySelector("#transactionType"),
+    transactionAmount: appRoot.querySelector("#transactionAmount"),
+    transactionMemo: appRoot.querySelector("#transactionMemo"),
+    applyTransaction: appRoot.querySelector("#applyTransaction"),
+    clearStatement: appRoot.querySelector("#clearStatement"),
+    downloadStatement: appRoot.querySelector("#downloadStatement"),
+    statementPreview: appRoot.querySelector("#statementPreview"),
+    cameraPreview: appRoot.querySelector("#cameraPreview"),
+    cameraEmpty: appRoot.querySelector("#cameraEmpty"),
+    startScanner: appRoot.querySelector("#startScanner"),
+    stopScanner: appRoot.querySelector("#stopScanner"),
+    scannerStatus: appRoot.querySelector("#scannerStatus"),
+    scanResult: appRoot.querySelector("#scanResult")
   };
 }
 
-function loadState() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-  if (!saved) return structuredClone(starterState);
+function blankTeacher(name) {
+  return {
+    id: createId(),
+    name,
+    currency: "USD",
+    students: [],
+    createdAt: new Date().toISOString()
+  };
+}
+
+function createId() {
+  if (globalThis.crypto?.randomUUID) {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function readStoredValue(key, fallback = null) {
   try {
-    return { ...structuredClone(starterState), ...JSON.parse(saved) };
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value;
   } catch {
-    return structuredClone(starterState);
+    return memoryStorage.has(key) ? memoryStorage.get(key) : fallback;
   }
 }
 
-function selectStudentFromUrl() {
-  const id = new URLSearchParams(location.search).get("student");
-  if (id && state.students.some((student) => student.id === id)) {
-    state.selectedId = id;
+function writeStoredValue(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    memoryStorage.set(key, value);
   }
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function activeTeacher() {
+  return state.db.teachers.find((teacher) => teacher.id === state.activeTeacherId) || null;
 }
 
-function selectedStudent() {
-  return state.students.find((student) => student.id === state.selectedId) || null;
+function normalizeStudent(student) {
+  return {
+    transactions: [],
+    ...student,
+    balance: Number(student.balance || 0),
+    transactions: Array.isArray(student.transactions) ? student.transactions : []
+  };
 }
 
-function selectStudentById(id) {
-  const student = state.students.find((item) => item.id === id);
-  if (!student) return false;
-  state.selectedId = student.id;
-  render();
-  return true;
+function loadDatabase() {
+  const saved = JSON.parse(readStoredValue(DATABASE_KEY, "null"));
+
+  if (saved && Array.isArray(saved.teachers)) {
+    state.db = {
+      teachers: saved.teachers.map((teacher) => ({
+        ...teacher,
+        students: Array.isArray(teacher.students) ? teacher.students.map(normalizeStudent) : []
+      }))
+    };
+    state.activeTeacherId = readStoredValue(ACTIVE_TEACHER_KEY, "") || state.db.teachers[0]?.id || null;
+    return;
+  }
+
+  const legacy = JSON.parse(readStoredValue(LEGACY_STORAGE_KEY, "{}"));
+  const starter = blankTeacher("Teacher");
+  starter.currency = legacy.currency || "USD";
+  starter.students = Array.isArray(legacy.students) ? legacy.students.map(normalizeStudent) : [];
+  state.db = { teachers: [starter] };
+  state.activeTeacherId = starter.id;
+  saveDatabase();
+}
+
+function syncActiveTeacher() {
+  const teacher = activeTeacher();
+
+  if (!teacher) {
+    const starter = blankTeacher("Teacher");
+    state.db.teachers.push(starter);
+    state.activeTeacherId = starter.id;
+    saveDatabase();
+    return syncActiveTeacher();
+  }
+
+  state.students = teacher.students;
+  state.currency = teacher.currency || "USD";
+  els.currencySelect.value = state.currency;
+}
+
+function saveDatabase() {
+  const teacher = activeTeacher();
+  if (teacher) {
+    teacher.students = state.students;
+    teacher.currency = state.currency;
+  }
+
+  writeStoredValue(DATABASE_KEY, JSON.stringify(state.db));
+  writeStoredValue(ACTIVE_TEACHER_KEY, state.activeTeacherId || "");
+}
+
+function luhnCheckDigit(numberWithoutCheck) {
+  const digits = numberWithoutCheck.split("").map(Number).reverse();
+  const total = digits.reduce((sum, digit, index) => {
+    if (index % 2 === 0) {
+      const doubled = digit * 2;
+      return sum + (doubled > 9 ? doubled - 9 : doubled);
+    }
+    return sum + digit;
+  }, 0);
+  return String((10 - (total % 10)) % 10);
+}
+
+function randomDigits(length) {
+  if (!globalThis.crypto?.getRandomValues) {
+    return Array.from({ length }, () => String(Math.floor(Math.random() * 10))).join("");
+  }
+
+  const bytes = new Uint8Array(length);
+  globalThis.crypto.getRandomValues(bytes);
+  return Array.from(bytes, (byte) => String(byte % 10)).join("");
+}
+
+function createCardNumber() {
+  const body = `7777${randomDigits(11)}`;
+  return `${body}${luhnCheckDigit(body)}`;
+}
+
+function formatCardNumber(cardNumber) {
+  return cardNumber.replace(/(.{4})/g, "$1 ").trim();
+}
+
+function createStudent(name) {
+  const now = new Date().toISOString();
+  return {
+    id: createId(),
+    name,
+    cardNumber: createCardNumber(),
+    cvc: randomDigits(3),
+    pin: randomDigits(4),
+    currency: state.currency,
+    balance: 0,
+    transactions: [{
+      id: createId(),
+      date: now,
+      type: "opening",
+      amount: 0,
+      memo: "Account opened",
+      balance: 0
+    }],
+    createdAt: now
+  };
+}
+
+function qrPayload(student) {
+  return JSON.stringify({
+    app: "ClassBank",
+    id: student.id,
+    name: student.name,
+    cardNumber: student.cardNumber,
+    cvc: student.cvc,
+    pin: student.pin,
+    currency: student.currency
+  });
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function safeFileName(value) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60) || "student";
+}
+
+function qrFactory() {
+  if (typeof window.qrcode === "function") return window.qrcode;
+  if (typeof globalThis.qrcode === "function") return globalThis.qrcode;
+  if (typeof qrcode === "function") return qrcode;
+  return null;
+}
+
+function qrPathData(payload, x, y, size) {
+  const createQr = qrFactory();
+  if (!createQr) return "";
+
+  const qr = createQr(0, "M");
+  qr.addData(payload);
+  qr.make();
+
+  const count = qr.getModuleCount();
+  const cell = size / count;
+  const commands = [];
+
+  for (let row = 0; row < count; row += 1) {
+    for (let col = 0; col < count; col += 1) {
+      if (qr.isDark(row, col)) {
+        const px = (x + col * cell).toFixed(3);
+        const py = (y + row * cell).toFixed(3);
+        const cs = cell.toFixed(3);
+        commands.push(`M${px} ${py}h${cs}v${cs}h-${cs}z`);
+      }
+    }
+  }
+
+  return commands.join("");
+}
+
+function laserCardContent(student, offsetX = 0, offsetY = 0) {
+  const x = (value) => (offsetX + value).toFixed(3);
+  const y = (value) => (offsetY + value).toFixed(3);
+  const payload = qrPayload(student);
+  const qrPath = qrPathData(payload, offsetX + 61.1, offsetY + 26.2, 17.6);
+  const cardNumber = formatCardNumber(student.cardNumber);
+
+  return `
+    <g id="card-${escapeXml(student.id)}" fill="none" stroke="#000" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="${x(0.5)}" y="${y(0.5)}" width="84.6" height="52.98" rx="3.18" stroke-width="0.25"/>
+      <path d="M${x(5)} ${y(12)}H${x(47)}" stroke-width="0.18"/>
+      <path d="M${x(5)} ${y(44.5)}H${x(54)}" stroke-width="0.18"/>
+      <path d="M${x(56.5)} ${y(8)}C${x(64)} ${y(13)} ${x(73)} ${y(13)} ${x(80.5)} ${y(8)}" stroke-width="0.16"/>
+      <path d="M${x(56.5)} ${y(12)}C${x(64)} ${y(17)} ${x(73)} ${y(17)} ${x(80.5)} ${y(12)}" stroke-width="0.16"/>
+    </g>
+    <g id="text-${escapeXml(student.id)}" fill="#000" stroke="none" font-family="Arial, Helvetica, sans-serif">
+      <text x="${x(5)}" y="${y(8.5)}" font-size="4.2" font-weight="700">ClassBank</text>
+      <text x="${x(80.5)}" y="${y(8.5)}" font-size="3.2" font-weight="700" text-anchor="end">${escapeXml(student.currency)}</text>
+      <text x="${x(5)}" y="${y(22)}" font-size="5.2" font-weight="700">${escapeXml(student.name)}</text>
+      <text x="${x(5)}" y="${y(31)}" font-size="4.2" letter-spacing="0.45">${escapeXml(cardNumber)}</text>
+      <text x="${x(5)}" y="${y(39)}" font-size="3.2" font-weight="700">PIN ${escapeXml(student.pin)}</text>
+      <text x="${x(25)}" y="${y(39)}" font-size="3.2" font-weight="700">CVC ${escapeXml(student.cvc)}</text>
+      <text x="${x(5)}" y="${y(49.2)}" font-size="2.45">ID ${escapeXml(student.id.slice(0, 8))}</text>
+    </g>
+    <g id="qr-${escapeXml(student.id)}">
+      <rect x="${x(59.4)}" y="${y(24.5)}" width="21" height="21" rx="1" fill="none" stroke="#000" stroke-width="0.18"/>
+      <path d="${qrPath}" fill="#000" stroke="none"/>
+      <text x="${x(69.9)}" y="${y(49.2)}" font-family="Arial, Helvetica, sans-serif" font-size="2.4" text-anchor="middle" fill="#000">SCAN</text>
+    </g>
+  `;
+}
+
+function laserCardSvg(student) {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="85.6mm" height="53.98mm" viewBox="0 0 85.6 53.98">
+  <title>${escapeXml(student.name)} ClassBank card</title>
+  ${laserCardContent(student)}
+</svg>
+`;
+}
+
+function laserSheetSvg(students) {
+  const columns = 2;
+  const cardWidth = 85.6;
+  const cardHeight = 53.98;
+  const gap = 6;
+  const margin = 6;
+  const rows = Math.ceil(students.length / columns);
+  const width = margin * 2 + columns * cardWidth + (columns - 1) * gap;
+  const height = margin * 2 + rows * cardHeight + Math.max(0, rows - 1) * gap;
+  const cards = students.map((student, index) => {
+    const col = index % columns;
+    const row = Math.floor(index / columns);
+    const x = margin + col * (cardWidth + gap);
+    const y = margin + row * (cardHeight + gap);
+    return laserCardContent(student, x, y);
+  }).join("\n");
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}mm" height="${height}mm" viewBox="0 0 ${width} ${height}">
+  <title>ClassBank student card sheet</title>
+  ${cards}
+</svg>
+`;
+}
+
+function downloadSvg(filename, contents) {
+  const blob = new Blob([contents], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function downloadStudentSvg(studentId) {
+  const student = state.students.find((item) => item.id === studentId);
+  if (!student) return;
+
+  downloadSvg(`${safeFileName(student.name)}-classbank-card.svg`, laserCardSvg(student));
+}
+
+function downloadSvgSheet() {
+  if (state.students.length === 0) {
+    els.studentNames.focus();
+    return;
+  }
+
+  downloadSvg("classbank-student-card-sheet.svg", laserSheetSvg(state.students));
+}
+
+function downloadAllStudentSvgs() {
+  if (state.students.length === 0) {
+    els.studentNames.focus();
+    return;
+  }
+
+  state.students.forEach((student, index) => {
+    window.setTimeout(() => {
+      downloadSvg(`${safeFileName(student.name)}-classbank-card.svg`, laserCardSvg(student));
+    }, index * 180);
+  });
+}
+
+function renderQr(container, student) {
+  container.textContent = "";
+  const payload = qrPayload(student);
+  const createQr = qrFactory();
+
+  if (createQr) {
+    try {
+      const qr = createQr(0, "M");
+      qr.addData(payload);
+      qr.make();
+      container.innerHTML = qr.createSvgTag(2, 1, `QR code for ${student.name}`);
+      return;
+    } catch {
+      container.textContent = "";
+    }
+  }
+
+  const img = document.createElement("img");
+  img.alt = `QR code for ${student.name}`;
+  img.src = `https://api.qrserver.com/v1/create-qr-code/?size=168x168&data=${encodeURIComponent(payload)}`;
+  img.addEventListener("error", () => {
+    container.innerHTML = '<span class="qr-error">QR unavailable</span>';
+  });
+  container.append(img);
+}
+
+function moneyLabel(student, amount = student.balance) {
+  const symbol = currencySymbols[student.currency] || student.currency;
+  return `${symbol} ${Number(amount).toFixed(2)}`;
+}
+
+function renderTeachers() {
+  els.teacherSelect.textContent = "";
+  state.db.teachers.forEach((teacher) => {
+    const option = document.createElement("option");
+    option.value = teacher.id;
+    option.textContent = teacher.name;
+    option.selected = teacher.id === state.activeTeacherId;
+    els.teacherSelect.append(option);
+  });
+}
+
+function renderAccounts() {
+  const currentValue = els.accountStudent.value;
+  els.accountStudent.textContent = "";
+
+  if (state.students.length === 0) {
+    const option = document.createElement("option");
+    option.value = "";
+    option.textContent = "No students yet";
+    els.accountStudent.append(option);
+    renderStatementPreview();
+    return;
+  }
+
+  state.students.forEach((student) => {
+    const option = document.createElement("option");
+    option.value = student.id;
+    option.textContent = `${student.name} - ${moneyLabel(student)}`;
+    els.accountStudent.append(option);
+  });
+
+  if (state.students.some((student) => student.id === currentValue)) {
+    els.accountStudent.value = currentValue;
+  }
+
+  renderStatementPreview();
+}
+
+function selectedAccount() {
+  return state.students.find((student) => student.id === els.accountStudent.value) || state.students[0] || null;
+}
+
+function renderStatementPreview() {
+  const student = selectedAccount();
+
+  if (!student) {
+    els.statementPreview.innerHTML = "<span>No account selected.</span>";
+    return;
+  }
+
+  const transactions = [...student.transactions].slice(-6).reverse();
+  const rows = transactions.map((transaction) => `
+    <div class="statement-row">
+      <div class="statement-main">
+        <span>${new Date(transaction.date).toLocaleDateString()}</span>
+        <strong>${escapeXml(transaction.memo || transaction.type)}</strong>
+      </div>
+      <div class="statement-money">
+        <span>${moneyLabel(student, transaction.amount)}</span>
+        <small>Balance ${moneyLabel(student, transaction.balance)}</small>
+      </div>
+    </div>
+  `).join("");
+
+  els.statementPreview.innerHTML = `
+    <div class="statement-head">
+      <strong>${escapeXml(student.name)}</strong>
+      <span>${moneyLabel(student)}</span>
+    </div>
+    ${rows || "<span>No transactions yet.</span>"}
+  `;
 }
 
 function render() {
-  dom.teacherName.value = state.teacher;
-  dom.studentsGrid.classList.toggle("story-view", state.view === "story");
-  renderSummary();
-  renderStudents();
-  renderDetail();
-  saveState();
-}
+  const teacher = activeTeacher();
+  renderTeachers();
+  els.studentCount.textContent = `${state.students.length} student${state.students.length === 1 ? "" : "s"}`;
+  els.currencyBadge.textContent = state.currency;
+  els.teacherBadge.textContent = teacher ? teacher.name : "No teacher";
+  els.cardsGrid.textContent = "";
 
-function renderSummary() {
-  const total = state.students.reduce((sum, student) => sum + student.balance, 0);
-  const saverWord = state.students.length === 1 ? "saver" : "savers";
-  dom.classSummary.textContent = `${state.students.length} ${saverWord}, ${total} Creative Coins saved`;
-}
+  if (state.students.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "Enter student names to generate classroom bank cards.";
+    els.cardsGrid.append(empty);
+    renderAccounts();
+    return;
+  }
 
-function renderStudents() {
-  dom.studentsGrid.replaceChildren();
   state.students.forEach((student) => {
-    const card = dom.template.content.firstElementChild.cloneNode(true);
-    const button = card.querySelector(".student-button");
-    button.classList.toggle("active", student.id === state.selectedId);
-    button.dataset.id = student.id;
-    card.querySelector(".student-name").textContent = student.name;
-    card.querySelector(".student-balance").textContent = student.balance;
-    card.querySelector(".coin-dots").replaceChildren(...coinDots(student.balance));
-    if (state.view === "story") {
-      const last = student.entries[0];
-      card.querySelector(".student-balance").textContent = last
-        ? `${last.type === "earn" ? "+" : "-"}${last.amount} ${last.reason}`
-        : "No Creative Coins yet";
-    }
-    dom.studentsGrid.append(card);
+    const article = document.createElement("article");
+    article.className = "student-card";
+    article.dataset.id = student.id;
+
+    article.innerHTML = `
+      <div class="card-face">
+        <div class="card-top">
+          <span class="card-brand">ClassBank</span>
+          <span>${student.currency}</span>
+        </div>
+        <div class="student-name"></div>
+        <div class="card-number">${formatCardNumber(student.cardNumber)}</div>
+        <div class="card-bottom">
+          <span>PIN ${student.pin}</span>
+          <span>CVC ${student.cvc}</span>
+        </div>
+      </div>
+      <div class="card-details">
+        <div class="detail-list">
+          <div><span>Student</span><strong class="detail-name"></strong></div>
+          <div><span>Balance</span><strong>${moneyLabel(student)}</strong></div>
+          <div><span>ID</span><strong>${student.id.slice(0, 8)}</strong></div>
+        </div>
+        <div class="qr-box" aria-label="QR code"></div>
+      </div>
+      <div class="card-actions">
+        <button class="ghost copy-card" type="button">Copy details</button>
+        <button class="ghost download-svg-card" type="button">SVG</button>
+        <button class="ghost remove-card" type="button">Remove</button>
+      </div>
+    `;
+
+    article.querySelector(".student-name").textContent = student.name;
+    article.querySelector(".detail-name").textContent = student.name;
+    renderQr(article.querySelector(".qr-box"), student);
+    els.cardsGrid.append(article);
   });
+
+  renderAccounts();
 }
 
-function coinDots(balance) {
-  const count = Math.min(8, Math.max(1, Math.ceil(balance / 5)));
-  return Array.from({ length: count }, () => document.createElement("i"));
+function generateCards() {
+  const names = els.studentNames.value
+    .split(/\r?\n/)
+    .map((name) => name.trim())
+    .filter(Boolean);
+
+  if (names.length === 0) {
+    els.studentNames.focus();
+    return;
+  }
+
+  const existingByName = new Map(state.students.map((student) => [
+    student.name.trim().toLowerCase(),
+    student
+  ]));
+
+  names.forEach((name) => {
+    if (!existingByName.has(name.toLowerCase())) {
+      state.students.push(createStudent(name));
+    }
+  });
+
+  saveDatabase();
+  render();
 }
 
-function renderDetail() {
-  const student = selectedStudent();
-  dom.emptyState.hidden = Boolean(student);
-  dom.studentDetail.hidden = !student;
+async function copyDetails(studentId) {
+  const student = state.students.find((item) => item.id === studentId);
   if (!student) return;
 
-  dom.detailName.textContent = student.name;
-  dom.detailBalance.textContent = student.balance;
-  renderJar(student.balance);
-  dom.statementList.replaceChildren(...student.entries.slice(0, 20).map(statementItem));
+  const details = [
+    `Student: ${student.name}`,
+    `Currency: ${student.currency}`,
+    `Card number: ${formatCardNumber(student.cardNumber)}`,
+    `CVC: ${student.cvc}`,
+    `PIN: ${student.pin}`,
+    `QR payload: ${qrPayload(student)}`
+  ].join("\n");
+
+  await navigator.clipboard.writeText(details);
 }
 
-function renderJar(balance) {
-  dom.detailJar.querySelectorAll(".jar-coin").forEach((coin) => coin.remove());
-  const count = Math.min(7, Math.max(1, Math.floor(balance)));
-  const spots = [
-    [26, 67],
-    [43, 75],
-    [62, 80],
-    [82, 78],
-    [101, 70],
-    [48, 58],
-    [72, 62]
+function removeStudent(studentId) {
+  state.students = state.students.filter((student) => student.id !== studentId);
+  saveDatabase();
+  render();
+}
+
+function createOrSwitchTeacher() {
+  const requestedName = els.teacherName.value.trim();
+
+  if (!requestedName) {
+    state.activeTeacherId = els.teacherSelect.value || state.activeTeacherId;
+    syncActiveTeacher();
+    saveDatabase();
+    render();
+    return;
+  }
+
+  const existing = state.db.teachers.find((teacher) => (
+    teacher.name.toLowerCase() === requestedName.toLowerCase()
+  ));
+
+  if (existing) {
+    state.activeTeacherId = existing.id;
+  } else {
+    const teacher = blankTeacher(requestedName);
+    state.db.teachers.push(teacher);
+    state.activeTeacherId = teacher.id;
+  }
+
+  els.teacherName.value = "";
+  syncActiveTeacher();
+  saveDatabase();
+  render();
+}
+
+function applyTransaction() {
+  const student = selectedAccount();
+  if (!student) return;
+
+  const rawAmount = Number(els.transactionAmount.value);
+  if (!Number.isFinite(rawAmount) || rawAmount < 0) {
+    els.transactionAmount.focus();
+    return;
+  }
+
+  const type = els.transactionType.value;
+  const previousBalance = Number(student.balance || 0);
+  let amount = rawAmount;
+  let nextBalance = previousBalance;
+
+  if (type === "deposit") {
+    nextBalance += rawAmount;
+  } else if (type === "withdraw") {
+    amount = -rawAmount;
+    nextBalance -= rawAmount;
+  } else {
+    amount = rawAmount - previousBalance;
+    nextBalance = rawAmount;
+  }
+
+  student.balance = Number(nextBalance.toFixed(2));
+  student.transactions.push({
+    id: createId(),
+    date: new Date().toISOString(),
+    type,
+    amount: Number(amount.toFixed(2)),
+    memo: els.transactionMemo.value.trim() || type,
+    balance: student.balance
+  });
+
+  els.transactionAmount.value = "";
+  els.transactionMemo.value = "";
+  saveDatabase();
+  render();
+  els.accountStudent.value = student.id;
+  renderStatementPreview();
+}
+
+function statementCsv(student) {
+  const rows = [
+    ["Student", student.name],
+    ["Currency", student.currency],
+    ["Card Number", student.cardNumber],
+    [],
+    ["Date", "Type", "Memo", "Amount", "Balance"],
+    ...student.transactions.map((transaction) => [
+      new Date(transaction.date).toLocaleString(),
+      transaction.type,
+      transaction.memo,
+      transaction.amount.toFixed(2),
+      transaction.balance.toFixed(2)
+    ])
   ];
-  spots.slice(0, count).forEach(([left, top]) => {
-    const coin = document.createElement("span");
-    coin.className = "jar-coin";
-    coin.style.left = `${left}px`;
-    coin.style.top = `${top}px`;
-    dom.detailJar.append(coin);
-  });
+
+  return rows.map((row) => row.map((cell) => {
+    const text = String(cell ?? "");
+    return `"${text.replace(/"/g, '""')}"`;
+  }).join(",")).join("\n");
 }
 
-function statementItem(item) {
-  const li = document.createElement("li");
-  const sign = item.type === "earn" ? "+" : "-";
-  const date = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" }).format(new Date(item.at));
-  li.innerHTML = `
-    <strong class="${item.type === "earn" ? "plus" : "minus"}">${sign}${item.amount}</strong>
-    <span>${escapeHtml(item.reason)}</span>
-    <time>${date}</time>
-  `;
-  return li;
+function downloadText(filename, contents, type = "text/plain") {
+  const blob = new Blob([contents], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#039;"
-  })[char]);
+function downloadSelectedStatement() {
+  const student = selectedAccount();
+  if (!student) return;
+
+  downloadText(
+    `${safeFileName(student.name)}-statement.csv`,
+    statementCsv(student),
+    "text/csv"
+  );
 }
 
-function addStudent(name) {
-  const trimmed = name.trim();
-  if (!trimmed) return;
-  const student = {
-    id: trimmed.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now().toString(36),
-    name: trimmed,
-    balance: 0,
-    entries: []
+function clearSelectedStatement() {
+  const student = selectedAccount();
+  if (!student) return;
+
+  student.transactions = [{
+    id: createId(),
+    date: new Date().toISOString(),
+    type: "opening",
+    amount: 0,
+    memo: "Statement reset",
+    balance: student.balance
+  }];
+  saveDatabase();
+  renderStatementPreview();
+}
+
+function exportTeacherData() {
+  const teacher = activeTeacher();
+  if (!teacher) return;
+
+  downloadText(
+    `${safeFileName(teacher.name)}-classbank-data.json`,
+    JSON.stringify(teacher, null, 2),
+    "application/json"
+  );
+}
+
+function normalizeImportedTeacher(data) {
+  if (!data || typeof data !== "object") {
+    throw new Error("That file does not look like ClassBank teacher data.");
+  }
+
+  const teacher = data.teachers?.[0] || data;
+  if (!teacher.name || !Array.isArray(teacher.students)) {
+    throw new Error("That file does not include a teacher and student list.");
+  }
+
+  return {
+    id: teacher.id || createId(),
+    name: String(teacher.name),
+    currency: teacher.currency || "USD",
+    createdAt: teacher.createdAt || new Date().toISOString(),
+    students: teacher.students.map(normalizeStudent)
   };
-  state.students.push(student);
-  state.selectedId = student.id;
 }
 
-function addTransaction(student, type, amount, reason) {
-  const safeAmount = Math.max(1, Math.floor(Number(amount) || 1));
-  if (type === "spend" && student.balance - safeAmount < 0) return false;
-  student.balance += type === "earn" ? safeAmount : -safeAmount;
-  student.entries.unshift(entry(type, safeAmount, reason));
-  return true;
-}
+function importTeacherDataFile(file) {
+  if (!file) return;
 
-function createCardSvg(student) {
-  const qr = qrSvg(studentQrValue(student), 258, 82, 80);
+  const reader = new FileReader();
+  reader.addEventListener("load", () => {
+    try {
+      const imported = normalizeImportedTeacher(JSON.parse(reader.result));
+      const existingIndex = state.db.teachers.findIndex((teacher) => teacher.id === imported.id);
 
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="360" height="220" viewBox="0 0 360 220">
-  <rect width="360" height="220" rx="18" fill="#fffaf0"/>
-  <rect x="10" y="10" width="340" height="200" rx="14" fill="#ffffff" stroke="#263238" stroke-width="4"/>
-  <circle cx="82" cy="102" r="46" fill="#f7a8b8" stroke="#263238" stroke-width="4"/>
-  <circle cx="68" cy="92" r="4" fill="#263238"/>
-  <circle cx="96" cy="92" r="4" fill="#263238"/>
-  <ellipse cx="82" cy="112" rx="16" ry="11" fill="#f08096"/>
-  <text x="28" y="38" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#66737a">PIGGY BANK</text>
-  <text x="140" y="94" font-family="Arial, sans-serif" font-size="32" font-weight="900" fill="#263238">${escapeXml(student.name)}</text>
-  <text x="140" y="132" font-family="Arial, sans-serif" font-size="20" font-weight="800" fill="#35a875">${student.balance} Creative Coins</text>
-  <rect x="252" y="76" width="92" height="92" rx="8" fill="#ffffff" stroke="#263238" stroke-width="3"/>
-  ${qr}
-  <text x="28" y="188" font-family="Arial, sans-serif" font-size="16" font-weight="700" fill="#263238">${escapeXml(state.teacher)}</text>
-</svg>`;
-}
+      if (existingIndex >= 0) {
+        state.db.teachers[existingIndex] = imported;
+      } else {
+        state.db.teachers.push(imported);
+      }
 
-function firstName(name) {
-  return name.trim().split(/\s+/)[0] || name;
-}
-
-function fileSlug(value) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "student";
-}
-
-function studentQrValue(student) {
-  if (location.protocol === "http:" || location.protocol === "https:") {
-    const url = new URL(location.href);
-    url.searchParams.set("student", student.id);
-    return url.toString();
-  }
-  return `PIGGYBANK|${student.id}|${student.name}`;
-}
-
-function dogTagShape(fill = "none", stroke = "#111111") {
-  return `<path d="M46 12H314C337 12 356 31 356 54V156C356 179 337 198 314 198H46C23 198 4 179 4 156V54C4 31 23 12 46 12Z" fill="${fill}" stroke="${stroke}" stroke-width="4"/>`;
-}
-
-async function createDogTagFrontSvg(student) {
-  const logo = await logoDataUrl();
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="3.6in" height="2.1in" viewBox="0 0 360 210">
-  <defs>
-    <clipPath id="tagClip">${dogTagShape("#ffffff", "none")}</clipPath>
-  </defs>
-  ${dogTagShape("#ffffff", "#111111")}
-  <circle cx="36" cy="105" r="13" fill="#ffffff" stroke="#111111" stroke-width="4"/>
-  <image href="${logo}" x="82" y="18" width="196" height="174" preserveAspectRatio="xMidYMid meet" clip-path="url(#tagClip)"/>
-  <text x="180" y="192" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#111111">${escapeXml(firstName(student.name))}</text>
-</svg>`;
-}
-
-function createDogTagBackSvg(student) {
-  const qr = qrSvg(studentQrValue(student), 197, 47, 116);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="3.6in" height="2.1in" viewBox="0 0 360 210">
-  ${dogTagShape("#ffffff", "#111111")}
-  <circle cx="36" cy="105" r="13" fill="#ffffff" stroke="#111111" stroke-width="4"/>
-  <text x="112" y="93" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="900" fill="#111111">${escapeXml(firstName(student.name))}</text>
-  <text x="112" y="124" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111111">Piggy Bank</text>
-  <rect x="187" y="37" width="136" height="136" rx="8" fill="#ffffff" stroke="#111111" stroke-width="3"/>
-  ${qr}
-</svg>`;
-}
-
-async function logoDataUrl() {
-  const response = await fetch("assets/creative-coin-logo.png");
-  const blob = await response.blob();
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.readAsDataURL(blob);
+      state.activeTeacherId = imported.id;
+      syncActiveTeacher();
+      saveDatabase();
+      render();
+      alert(`Imported ${imported.name}.`);
+    } catch (error) {
+      alert(error.message || "ClassBank could not import that file.");
+    } finally {
+      els.importTeacherFile.value = "";
+    }
   });
+  reader.readAsText(file);
 }
 
-async function downloadDogTags(student) {
-  const slug = fileSlug(firstName(student.name));
-  download(`${slug}-dog-tag-front.svg`, await createDogTagFrontSvg(student), "image/svg+xml");
-  setTimeout(() => {
-    download(`${slug}-dog-tag-back.svg`, createDogTagBackSvg(student), "image/svg+xml");
-  }, 200);
+function setScannerStatus(text, isError = false) {
+  els.scannerStatus.textContent = text;
+  els.scannerStatus.style.background = isError ? "rgba(164, 50, 50, 0.16)" : "";
+  els.scannerStatus.style.color = isError ? "#7b2525" : "";
 }
 
-function studentIdFromQr(value) {
+function showScanResult(student) {
+  els.scanResult.innerHTML = `
+    <strong>${student.name}</strong>
+    Card ${formatCardNumber(student.cardNumber)}<br>
+    PIN ${student.pin} · CVC ${student.cvc} · ${student.currency}
+  `;
+}
+
+function handleQrValue(value) {
+  let payload;
   try {
-    const url = new URL(value);
-    return url.searchParams.get("student") || "";
+    payload = JSON.parse(value);
   } catch {
-    const parts = value.split("|");
-    return parts[0] === "PIGGYBANK" ? parts[1] : "";
+    setScannerStatus("Unknown QR", true);
+    els.scanResult.textContent = value;
+    return;
   }
+
+  const student = state.students.find((item) => item.id === payload.id);
+  if (!student) {
+    setScannerStatus("Not found", true);
+    els.scanResult.textContent = "This QR code was not found in the current student list.";
+    return;
+  }
+
+  setScannerStatus("Scanned");
+  showScanResult(student);
+}
+
+async function scanFrame() {
+  if (!state.detector || !state.stream) return;
+
+  try {
+    const codes = await state.detector.detect(els.cameraPreview);
+    if (codes.length > 0) {
+      handleQrValue(codes[0].rawValue);
+    }
+  } catch {
+    setScannerStatus("Scanning unavailable", true);
+  }
+
+  state.scanTimer = requestAnimationFrame(scanFrame);
 }
 
 async function startScanner() {
-  dom.scannerModal.hidden = false;
-  dom.scannerStatus.textContent = "Point the camera at a Piggy Bank QR code.";
-
   if (!("BarcodeDetector" in window)) {
-    dom.scannerStatus.textContent = "This browser does not support QR camera scanning yet. Try Chrome or Edge on the Render site.";
+    setScannerStatus("No QR support", true);
+    els.scanResult.textContent = "This browser cannot scan QR codes directly. Use Chrome or Edge on localhost.";
     return;
   }
 
   const formats = await BarcodeDetector.getSupportedFormats();
   if (!formats.includes("qr_code")) {
-    dom.scannerStatus.textContent = "This camera scanner cannot read QR codes on this browser.";
+    setScannerStatus("No QR support", true);
     return;
   }
 
   try {
-    scannerStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-    dom.scannerVideo.srcObject = scannerStream;
-    const detector = new BarcodeDetector({ formats: ["qr_code"] });
-    scanFrame(detector);
+    state.detector = new BarcodeDetector({ formats: ["qr_code"] });
+    state.stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+      audio: false
+    });
+    els.cameraPreview.srcObject = state.stream;
+    await els.cameraPreview.play();
+    els.cameraEmpty.hidden = true;
+    els.startScanner.disabled = true;
+    els.stopScanner.disabled = false;
+    setScannerStatus("Scanning");
+    scanFrame();
   } catch {
-    dom.scannerStatus.textContent = "Camera permission is needed to scan dog tags.";
+    setScannerStatus("Camera blocked", true);
+    els.scanResult.textContent = "Allow camera access in the browser to scan a student's QR code.";
   }
-}
-
-async function scanFrame(detector) {
-  if (dom.scannerModal.hidden || !scannerStream) return;
-  try {
-    const codes = await detector.detect(dom.scannerVideo);
-    if (codes.length) {
-      const id = studentIdFromQr(codes[0].rawValue);
-      if (selectStudentById(id)) {
-        dom.scannerStatus.textContent = "Student found.";
-        stopScanner();
-        return;
-      }
-      dom.scannerStatus.textContent = "QR code found, but that student is not in this class list.";
-    }
-  } catch {
-    dom.scannerStatus.textContent = "Hold the QR code steady in the camera view.";
-  }
-  scannerLoop = requestAnimationFrame(() => scanFrame(detector));
 }
 
 function stopScanner() {
-  cancelAnimationFrame(scannerLoop);
-  scannerLoop = 0;
-  if (scannerStream) {
-    scannerStream.getTracks().forEach((track) => track.stop());
-    scannerStream = null;
+  if (state.scanTimer) cancelAnimationFrame(state.scanTimer);
+  state.scanTimer = null;
+
+  if (state.stream) {
+    state.stream.getTracks().forEach((track) => track.stop());
   }
-  dom.scannerVideo.srcObject = null;
-  dom.scannerModal.hidden = true;
+  state.stream = null;
+  els.cameraPreview.srcObject = null;
+  els.cameraEmpty.hidden = false;
+  els.startScanner.disabled = false;
+  els.stopScanner.disabled = true;
+  setScannerStatus("Ready");
 }
 
-function qrSvg(value, x, y, size) {
-  const matrix = createQrMatrix(value);
-  const quiet = 4;
-  const cells = matrix.length + quiet * 2;
-  const scale = size / cells;
-  const rects = [];
-  matrix.forEach((row, rowIndex) => {
-    row.forEach((dark, colIndex) => {
-      if (!dark) return;
-      rects.push(`<rect x="${round(x + (colIndex + quiet) * scale)}" y="${round(y + (rowIndex + quiet) * scale)}" width="${round(scale + 0.02)}" height="${round(scale + 0.02)}"/>`);
-    });
-  });
-  return `<g fill="#111111">${rects.join("")}</g>`;
-}
-
-function round(number) {
-  return Math.round(number * 100) / 100;
-}
-
-function createQrMatrix(value) {
-  const version = 4;
-  const size = 17 + version * 4;
-  const dataCapacity = 80;
-  const ecLength = 20;
-  const bytes = new TextEncoder().encode(value);
-  if (bytes.length > 78) {
-    return createQrMatrix(`PIGGYBANK|${state.selectedId || "student"}`);
+function handleAppClick(event) {
+  if (event.target.closest("#generateCards")) {
+    generateCards();
+    return;
   }
 
-  const bits = [0, 1, 0, 0, ...byteBits(bytes.length), ...Array.from(bytes).flatMap(byteBits)];
-  bits.push(...Array(Math.min(4, dataCapacity * 8 - bits.length)).fill(0));
-  while (bits.length % 8) bits.push(0);
-  const data = [];
-  for (let index = 0; index < bits.length; index += 8) data.push(bitsToByte(bits.slice(index, index + 8)));
-  for (let pad = 0; data.length < dataCapacity; pad += 1) data.push(pad % 2 ? 0x11 : 0xec);
-
-  const codewords = data.concat(reedSolomon(data, ecLength));
-  const modules = Array.from({ length: size }, () => Array(size).fill(false));
-  const reserved = Array.from({ length: size }, () => Array(size).fill(false));
-
-  addFinder(modules, reserved, 0, 0);
-  addFinder(modules, reserved, size - 7, 0);
-  addFinder(modules, reserved, 0, size - 7);
-  addAlignment(modules, reserved, 26, 26);
-  addTiming(modules, reserved);
-  modules[4 * version + 9][8] = true;
-  reserved[4 * version + 9][8] = true;
-  reserveFormat(reserved);
-  placeData(modules, reserved, codewords);
-  addFormat(modules, reserved, 1, 0);
-
-  return modules;
-}
-
-function byteBits(value) {
-  return Array.from({ length: 8 }, (_, index) => (value >> (7 - index)) & 1);
-}
-
-function bitsToByte(bits) {
-  return bits.reduce((byte, bit) => (byte << 1) | bit, 0);
-}
-
-function addFinder(modules, reserved, x, y) {
-  for (let row = -1; row <= 7; row += 1) {
-    for (let col = -1; col <= 7; col += 1) {
-      const xx = x + col;
-      const yy = y + row;
-      if (!modules[yy] || modules[yy][xx] === undefined) continue;
-      const dark = col >= 0 && col <= 6 && row >= 0 && row <= 6 && (col === 0 || col === 6 || row === 0 || row === 6 || (col >= 2 && col <= 4 && row >= 2 && row <= 4));
-      modules[yy][xx] = dark;
-      reserved[yy][xx] = true;
-    }
-  }
-}
-
-function addAlignment(modules, reserved, centerX, centerY) {
-  for (let row = -2; row <= 2; row += 1) {
-    for (let col = -2; col <= 2; col += 1) {
-      const dark = Math.max(Math.abs(row), Math.abs(col)) !== 1;
-      modules[centerY + row][centerX + col] = dark;
-      reserved[centerY + row][centerX + col] = true;
-    }
-  }
-}
-
-function addTiming(modules, reserved) {
-  for (let index = 8; index < modules.length - 8; index += 1) {
-    const dark = index % 2 === 0;
-    modules[6][index] = dark;
-    modules[index][6] = dark;
-    reserved[6][index] = true;
-    reserved[index][6] = true;
-  }
-}
-
-function reserveFormat(reserved) {
-  const size = reserved.length;
-  for (let index = 0; index < 9; index += 1) {
-    reserved[8][index] = true;
-    reserved[index][8] = true;
-    reserved[8][size - 1 - index] = true;
-    reserved[size - 1 - index][8] = true;
-  }
-}
-
-function placeData(modules, reserved, codewords) {
-  const bits = codewords.flatMap(byteBits);
-  let bitIndex = 0;
-  let upward = true;
-  for (let right = modules.length - 1; right >= 1; right -= 2) {
-    if (right === 6) right -= 1;
-    for (let vertical = 0; vertical < modules.length; vertical += 1) {
-      const row = upward ? modules.length - 1 - vertical : vertical;
-      for (let offset = 0; offset < 2; offset += 1) {
-        const col = right - offset;
-        if (reserved[row][col]) continue;
-        const bit = bits[bitIndex] || 0;
-        modules[row][col] = Boolean(bit) !== ((row + col) % 2 === 0);
-        bitIndex += 1;
-      }
-    }
-    upward = !upward;
-  }
-}
-
-function addFormat(modules, reserved, ecLevel, mask) {
-  const size = modules.length;
-  const format = formatBits((ecLevel << 3) | mask);
-  const set = (row, col, index) => {
-    modules[row][col] = Boolean((format >> index) & 1);
-    reserved[row][col] = true;
-  };
-
-  for (let index = 0; index <= 5; index += 1) set(8, index, index);
-  set(8, 7, 6);
-  set(8, 8, 7);
-  set(7, 8, 8);
-  for (let index = 9; index < 15; index += 1) set(14 - index, 8, index);
-  for (let index = 0; index < 8; index += 1) set(size - 1 - index, 8, index);
-  for (let index = 8; index < 15; index += 1) set(8, size - 15 + index, index);
-}
-
-function formatBits(value) {
-  let data = value << 10;
-  const generator = 0x537;
-  for (let shift = 14; shift >= 10; shift -= 1) {
-    if ((data >> shift) & 1) data ^= generator << (shift - 10);
-  }
-  return ((value << 10) | data) ^ 0x5412;
-}
-
-function reedSolomon(data, degree) {
-  const generator = rsGenerator(degree);
-  const result = Array(degree).fill(0);
-  data.forEach((byte) => {
-    const factor = byte ^ result.shift();
-    result.push(0);
-    generator.forEach((coefficient, index) => {
-      result[index] ^= gfMultiply(coefficient, factor);
-    });
-  });
-  return result;
-}
-
-function rsGenerator(degree) {
-  let result = [1];
-  for (let index = 0; index < degree; index += 1) {
-    const next = Array(result.length + 1).fill(0);
-    result.forEach((coefficient, coefficientIndex) => {
-      next[coefficientIndex] ^= coefficient;
-      next[coefficientIndex + 1] ^= gfMultiply(coefficient, gfPow(index));
-    });
-    result = next;
-  }
-  return result.slice(1);
-}
-
-function gfPow(power) {
-  let value = 1;
-  for (let index = 0; index < power; index += 1) value = gfMultiply(value, 2);
-  return value;
-}
-
-function gfMultiply(left, right) {
-  let result = 0;
-  for (let index = 0; index < 8; index += 1) {
-    if (right & 1) result ^= left;
-    const carry = left & 0x80;
-    left = (left << 1) & 0xff;
-    if (carry) left ^= 0x1d;
-    right >>= 1;
-  }
-  return result;
-}
-
-function escapeXml(value) {
-  return String(value).replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&apos;"
-  })[char]);
-}
-
-function download(filename, content, type) {
-  const blob = new Blob([content], { type });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  anchor.click();
-  URL.revokeObjectURL(url);
-}
-
-function printCards(students) {
-  document.querySelector("#printSheet")?.remove();
-  const sheet = document.createElement("main");
-  sheet.id = "printSheet";
-  sheet.style.gridTemplateColumns = "repeat(2, 360px)";
-  sheet.style.gap = "18px";
-  sheet.style.padding = "24px";
-  sheet.innerHTML = students.map(createCardSvg).join("");
-  document.body.append(sheet);
-  document.body.classList.add("printing-cards");
-  window.print();
-  document.body.classList.remove("printing-cards");
-}
-
-dom.teacherName.addEventListener("input", () => {
-  state.teacher = dom.teacherName.value;
-  saveState();
-});
-
-dom.scanCode.addEventListener("click", () => {
-  startScanner();
-});
-
-dom.closeScanner.addEventListener("click", () => {
-  stopScanner();
-});
-
-dom.studentForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  addStudent(dom.studentName.value);
-  dom.studentName.value = "";
-  render();
-});
-
-dom.studentsGrid.addEventListener("click", (event) => {
-  const button = event.target.closest(".student-button");
-  if (!button) return;
-  state.selectedId = button.dataset.id;
-  render();
-});
-
-dom.amountButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    chosenAmount = Number(button.dataset.amount);
-    dom.customAmount.value = "";
-    dom.amountButtons.forEach((item) => item.classList.toggle("active", item === button));
-  });
-});
-
-dom.customAmount.addEventListener("input", () => {
-  chosenAmount = Number(dom.customAmount.value) || 1;
-  dom.amountButtons.forEach((button) => button.classList.remove("active"));
-});
-
-dom.moneyForm.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const submitter = event.submitter;
-  const student = selectedStudent();
-  if (!student || !submitter) return;
-  addTransaction(student, submitter.value, chosenAmount, dom.reason.value);
-  render();
-});
-
-dom.deleteStudent.addEventListener("click", () => {
-  const student = selectedStudent();
-  if (!student) return;
-  state.students = state.students.filter((item) => item.id !== student.id);
-  state.selectedId = state.students[0]?.id || "";
-  render();
-});
-
-dom.resetStudent.addEventListener("click", () => {
-  const student = selectedStudent();
-  if (!student) return;
-  student.balance = 0;
-  student.entries.unshift(entry("spend", 0, "Fresh Start"));
-  render();
-});
-
-dom.printOne.addEventListener("click", () => {
-  const student = selectedStudent();
-  if (student) printCards([student]);
-});
-
-dom.printCards.addEventListener("click", () => {
-  printCards(state.students);
-});
-
-dom.downloadSvg.addEventListener("click", () => {
-  const student = selectedStudent();
-  if (!student) return;
-  download(`${fileSlug(student.name)}-piggy-card.svg`, createCardSvg(student), "image/svg+xml");
-});
-
-dom.downloadDogTag.addEventListener("click", () => {
-  const student = selectedStudent();
-  if (!student) return;
-  downloadDogTags(student);
-});
-
-dom.exportData.addEventListener("click", () => {
-  download("piggy-bank-data.json", JSON.stringify(state, null, 2), "application/json");
-});
-
-dom.importData.addEventListener("change", async () => {
-  const file = dom.importData.files[0];
-  if (!file) return;
-  const text = await file.text();
-  const imported = JSON.parse(text);
-  if (Array.isArray(imported.students)) {
-    state = imported;
+  if (event.target.closest("#clearAll")) {
+    state.students = [];
+    els.studentNames.value = "";
+    saveDatabase();
     render();
+    return;
   }
-  dom.importData.value = "";
-});
 
-dom.viewButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    state.view = button.dataset.view;
-    dom.viewButtons.forEach((item) => item.classList.toggle("active", item === button));
+  if (event.target.closest("#printCards")) {
+    window.print();
+    return;
+  }
+
+  if (event.target.closest("#downloadSvgSheet")) {
+    downloadSvgSheet();
+    return;
+  }
+
+  if (event.target.closest("#downloadSvgCards")) {
+    downloadAllStudentSvgs();
+    return;
+  }
+
+  if (event.target.closest("#createTeacher")) {
+    createOrSwitchTeacher();
+    return;
+  }
+
+  if (event.target.closest("#exportTeacherData")) {
+    exportTeacherData();
+    return;
+  }
+
+  if (event.target.closest("#importTeacherData")) {
+    els.importTeacherFile.click();
+    return;
+  }
+
+  if (event.target.closest("#applyTransaction")) {
+    applyTransaction();
+    return;
+  }
+
+  if (event.target.closest("#clearStatement")) {
+    clearSelectedStatement();
+    return;
+  }
+
+  if (event.target.closest("#downloadStatement")) {
+    downloadSelectedStatement();
+    return;
+  }
+
+  if (event.target.closest("#startScanner")) {
+    startScanner();
+    return;
+  }
+
+  if (event.target.closest("#stopScanner")) {
+    stopScanner();
+    return;
+  }
+
+  const card = event.target.closest(".student-card");
+  if (!card) return;
+
+  if (event.target.closest(".copy-card")) {
+    copyDetails(card.dataset.id);
+  }
+
+  if (event.target.closest(".download-svg-card")) {
+    downloadStudentSvg(card.dataset.id);
+  }
+
+  if (event.target.closest(".remove-card")) {
+    removeStudent(card.dataset.id);
+  }
+}
+
+function initClassBank() {
+  collectElements();
+
+  if (!els.generateCards || !els.cardsGrid) {
+    window.setTimeout(initClassBank, 60);
+    return;
+  }
+
+  appRoot.addEventListener("click", handleAppClick);
+  els.teacherSelect.addEventListener("change", (event) => {
+    state.activeTeacherId = event.target.value;
+    syncActiveTeacher();
+    saveDatabase();
     render();
   });
-});
-
-dom.classActions.forEach((button) => {
-  button.addEventListener("click", () => {
-    const student = selectedStudent();
-    if (!student) return;
-    const action = button.dataset.classAction;
-    const presets = {
-      bonus: [5, "Happy Helper"],
-      payday: [10, "Payday"],
-      cleanup: [2, "Clean Up"]
-    };
-    const [amount, reason] = presets[action];
-    addTransaction(student, "earn", amount, reason);
+  els.accountStudent.addEventListener("change", renderStatementPreview);
+  els.importTeacherFile.addEventListener("change", (event) => {
+    importTeacherDataFile(event.target.files?.[0]);
+  });
+  els.currencySelect.addEventListener("change", (event) => {
+    state.currency = event.target.value;
+    state.students.forEach((student) => {
+      student.currency = state.currency;
+    });
+    saveDatabase();
     render();
   });
-});
+  window.addEventListener("beforeunload", stopScanner);
 
-if ("serviceWorker" in navigator) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js").catch(() => {});
+  window.addEventListener("beforeinstallprompt", (event) => {
+    event.preventDefault();
+    state.deferredInstallPrompt = event;
+    els.installApp.hidden = false;
   });
+
+  els.installApp.addEventListener("click", async () => {
+    if (!state.deferredInstallPrompt) return;
+
+    state.deferredInstallPrompt.prompt();
+    await state.deferredInstallPrompt.userChoice;
+    state.deferredInstallPrompt = null;
+    els.installApp.hidden = true;
+  });
+
+  if ("serviceWorker" in navigator && ["http:", "https:"].includes(location.protocol)) {
+    navigator.serviceWorker.register("service-worker.js");
+  }
+
+  try {
+    loadDatabase();
+    syncActiveTeacher();
+    render();
+  } catch (error) {
+    console.error(error);
+    els.cardsGrid.innerHTML = `
+      <div class="empty-state">
+        ClassBank could not start: ${escapeXml(error.message || "Unknown browser error")}
+      </div>
+    `;
+  }
 }
 
-selectStudentFromUrl();
-dom.amountButtons[0].classList.add("active");
-dom.viewButtons.forEach((item) => item.classList.toggle("active", item.dataset.view === state.view));
-render();
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initClassBank);
+} else {
+  initClassBank();
+}
