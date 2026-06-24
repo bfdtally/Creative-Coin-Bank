@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: lesson-plan-generator
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm run start -- -p $PORT
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
