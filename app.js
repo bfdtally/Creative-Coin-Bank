@@ -1,7 +1,7 @@
 const STORAGE_KEY = "piggy-bank-state-v1";
 const CLOUD_STORAGE_KEY = "piggy-bank-cloud-v1";
-const SUPABASE_URL = "";
-const SUPABASE_ANON_KEY = "";
+const SUPABASE_URL = "https://uivypttuhigwiyvgsuuv.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_5FUAhDgS1Sd60IIUP3nMIw_vz3L6gtR";
 
 const starterState = {
   teacher: "Ms. Sunny",
