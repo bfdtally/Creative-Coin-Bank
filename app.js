@@ -308,30 +308,46 @@ function studentQrValue(student) {
 }
 
 function dogTagShape(fill = "none", stroke = "#111111") {
-  return `<path d="M46 12H314C337 12 356 31 356 54V156C356 179 337 198 314 198H46C23 198 4 179 4 156V54C4 31 23 12 46 12Z" fill="${fill}" stroke="${stroke}" stroke-width="4"/>`;
+  return `<path d="M54 4H156C179 4 198 23 198 46V314C198 337 179 356 156 356H54C31 356 12 337 12 314V46C12 23 31 4 54 4Z" fill="${fill}" stroke="${stroke}" stroke-width="4"/>`;
+}
+
+function dogTagNameLines(name) {
+  const words = name.trim().split(/\s+/).filter(Boolean);
+  if (words.length <= 1 || name.length <= 13) return [name.trim()];
+  const midpoint = Math.ceil(words.length / 2);
+  return [words.slice(0, midpoint).join(" "), words.slice(midpoint).join(" ")];
+}
+
+function dogTagNameSvg(name, x, y, maxWidth, fontSize = 27, lineHeight = 30) {
+  const lines = dogTagNameLines(name);
+  const startY = y - ((lines.length - 1) * lineHeight) / 2;
+  return lines.map((line, index) => {
+    const textLength = line.length > 13 ? ` textLength="${maxWidth}" lengthAdjust="spacingAndGlyphs"` : "";
+    return `<text x="${x}" y="${startY + index * lineHeight}" text-anchor="middle" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="900" fill="#111111"${textLength}>${escapeXml(line)}</text>`;
+  }).join("");
 }
 
 async function createDogTagFrontSvg(student) {
   const logo = await logoDataUrl();
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="3.6in" height="2.1in" viewBox="0 0 360 210">
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="2.1in" height="3.6in" viewBox="0 0 210 360">
   <defs>
     <clipPath id="tagClip">${dogTagShape("#ffffff", "none")}</clipPath>
   </defs>
   ${dogTagShape("#ffffff", "#111111")}
-  <circle cx="36" cy="105" r="13" fill="#ffffff" stroke="#111111" stroke-width="4"/>
-  <image href="${logo}" x="82" y="18" width="196" height="174" preserveAspectRatio="xMidYMid meet" clip-path="url(#tagClip)"/>
-  <text x="180" y="192" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#111111">${escapeXml(firstName(student.name))}</text>
+  <circle cx="105" cy="36" r="13" fill="#ffffff" stroke="#111111" stroke-width="4"/>
+  <image href="${logo}" x="24" y="76" width="162" height="184" preserveAspectRatio="xMidYMid meet" clip-path="url(#tagClip)"/>
+  ${dogTagNameSvg(student.name, 105, 300, 160, 18, 22)}
 </svg>`;
 }
 
 function createDogTagBackSvg(student) {
-  const qr = qrSvg(studentQrValue(student), 197, 47, 116);
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="3.6in" height="2.1in" viewBox="0 0 360 210">
+  const qr = qrSvg(studentQrValue(student), 53, 160, 104);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="2.1in" height="3.6in" viewBox="0 0 210 360">
   ${dogTagShape("#ffffff", "#111111")}
-  <circle cx="36" cy="105" r="13" fill="#ffffff" stroke="#111111" stroke-width="4"/>
-  <text x="112" y="93" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="900" fill="#111111">${escapeXml(firstName(student.name))}</text>
-  <text x="112" y="124" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111111">Piggy Bank</text>
-  <rect x="187" y="37" width="136" height="136" rx="8" fill="#ffffff" stroke="#111111" stroke-width="3"/>
+  <circle cx="105" cy="36" r="13" fill="#ffffff" stroke="#111111" stroke-width="4"/>
+  ${dogTagNameSvg(student.name, 105, 95, 160)}
+  <text x="105" y="132" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111111">Piggy Bank</text>
+  <rect x="43" y="150" width="124" height="124" rx="8" fill="#ffffff" stroke="#111111" stroke-width="3"/>
   ${qr}
 </svg>`;
 }
@@ -347,7 +363,7 @@ async function logoDataUrl() {
 }
 
 async function downloadDogTags(student) {
-  const slug = fileSlug(firstName(student.name));
+  const slug = fileSlug(student.name);
   download(`${slug}-dog-tag-front.svg`, await createDogTagFrontSvg(student), "image/svg+xml");
   setTimeout(() => {
     download(`${slug}-dog-tag-back.svg`, createDogTagBackSvg(student), "image/svg+xml");
