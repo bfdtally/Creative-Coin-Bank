@@ -290,6 +290,33 @@ function createCardSvg(student) {
 </svg>`;
 }
 
+function placeSvg(svg, x, y) {
+  return svg.replace("<svg ", `<svg x="${x}" y="${y}" `);
+}
+
+function createCardSheetSvg(students) {
+  const cardWidth = 360;
+  const cardHeight = 220;
+  const margin = 24;
+  const gap = 18;
+  const columns = 2;
+  const rows = Math.max(1, Math.ceil(students.length / columns));
+  const width = margin * 2 + columns * cardWidth + (columns - 1) * gap;
+  const height = margin * 2 + rows * cardHeight + (rows - 1) * gap;
+  const cards = students.map((student, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const x = margin + column * (cardWidth + gap);
+    const y = margin + row * (cardHeight + gap);
+    return placeSvg(createCardSvg(student), x, y);
+  }).join("\n");
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect width="${width}" height="${height}" fill="#ffffff"/>
+${cards}
+</svg>`;
+}
+
 function firstName(name) {
   return name.trim().split(/\s+/)[0] || name;
 }
@@ -368,6 +395,37 @@ async function downloadDogTags(student) {
   setTimeout(() => {
     download(`${slug}-dog-tag-back.svg`, createDogTagBackSvg(student), "image/svg+xml");
   }, 200);
+}
+
+async function createDogTagSheetSvg(students) {
+  const tagWidth = 210;
+  const tagHeight = 360;
+  const labelHeight = 26;
+  const margin = 24;
+  const pairGap = 18;
+  const studentGap = 30;
+  const rowGap = 24;
+  const pairsPerRow = 2;
+  const pairWidth = tagWidth * 2 + pairGap;
+  const pairHeight = labelHeight + tagHeight;
+  const rows = Math.max(1, Math.ceil(students.length / pairsPerRow));
+  const width = margin * 2 + pairsPerRow * pairWidth + (pairsPerRow - 1) * studentGap;
+  const height = margin * 2 + rows * pairHeight + (rows - 1) * rowGap;
+  const pairs = await Promise.all(students.map(async (student, index) => {
+    const column = index % pairsPerRow;
+    const row = Math.floor(index / pairsPerRow);
+    const x = margin + column * (pairWidth + studentGap);
+    const y = margin + row * (pairHeight + rowGap);
+    const label = `<text x="${x + pairWidth / 2}" y="${y + 18}" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="#111111">${escapeXml(student.name)}</text>`;
+    const front = placeSvg(await createDogTagFrontSvg(student), x, y + labelHeight);
+    const back = placeSvg(createDogTagBackSvg(student), x + tagWidth + pairGap, y + labelHeight);
+    return `${label}\n${front}\n${back}`;
+  }));
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <rect width="${width}" height="${height}" fill="#ffffff"/>
+${pairs.join("\n")}
+</svg>`;
 }
 
 function studentIdFromQr(value) {
@@ -862,15 +920,13 @@ dom.printCards.addEventListener("click", () => {
 });
 
 dom.downloadSvg.addEventListener("click", () => {
-  const student = selectedStudent();
-  if (!student) return;
-  download(`${fileSlug(student.name)}-piggy-card.svg`, createCardSvg(student), "image/svg+xml");
+  if (!state.students.length) return;
+  download("piggy-bank-card-sheet.svg", createCardSheetSvg(state.students), "image/svg+xml");
 });
 
-dom.downloadDogTag.addEventListener("click", () => {
-  const student = selectedStudent();
-  if (!student) return;
-  downloadDogTags(student);
+dom.downloadDogTag.addEventListener("click", async () => {
+  if (!state.students.length) return;
+  download("piggy-bank-dog-tag-sheet.svg", await createDogTagSheetSvg(state.students), "image/svg+xml");
 });
 
 dom.exportData.addEventListener("click", () => {
