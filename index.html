@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#f7b733">
     <title>Piggy Bank</title>
-    <link rel="manifest" href="manifest.webmanifest?v=21">
-    <link rel="stylesheet" href="styles.css?v=21">
+    <link rel="manifest" href="manifest.webmanifest?v=23">
+    <link rel="stylesheet" href="styles.css?v=23">
   </head>
   <body>
     <header class="topbar">
@@ -69,6 +69,22 @@
             <button type="button" id="syncNow">Sync</button>
           </div>
         </form>
+
+        <section class="admin-panel" aria-label="Administration">
+          <form id="adminForm">
+            <div>
+              <h2>Administration</h2>
+              <p id="adminStatus">Admin locked</p>
+            </div>
+            <label for="adminPin">Admin PIN</label>
+            <input id="adminPin" type="password" autocomplete="off" inputmode="numeric" placeholder="Admin PIN">
+            <div class="cloud-actions">
+              <button type="submit">Login</button>
+              <button type="button" id="adminRefresh">Refresh</button>
+            </div>
+          </form>
+          <div class="admin-classes" id="adminClasses" hidden></div>
+        </section>
       </section>
 
       <section class="student-area" aria-label="Student piggy banks">
@@ -140,8 +156,7 @@
 
           <div class="detail-actions">
             <button type="button" id="printOne">Card</button>
-            <button type="button" id="downloadDogTag">Dog Tag Sheet</button>
-            <button type="button" id="downloadSvg">Card Sheet SVG</button>
+            <button type="button" id="downloadSvg">SVG Sheet</button>
             <button type="button" id="resetStudent">Reset</button>
           </div>
 
@@ -180,6 +195,6 @@
       </article>
     </template>
 
-    <script src="app.js?v=21"></script>
+    <script src="app.js?v=23"></script>
   </body>
 </html>

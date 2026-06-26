@@ -19,7 +19,8 @@ Piggy Bank is a fresh, simpler classroom banking app for younger students. It us
 - Creative Coin logo in `assets/creative-coin-logo.png`
 - Little Savers pig icon in `assets/little-saver-pig-icon.png`
 - Balance panel pig icon in `assets/balance-pig.png`
-- Offline app shell through `piggy-bank-v21` service worker cache
+- Administration login for viewing all cloud classes and downloading central JSON/SVG files
+- Offline app shell through `piggy-bank-v23` service worker cache
 
 ## Cloud Sync
 
@@ -35,6 +36,22 @@ const SUPABASE_ANON_KEY = "your-anon-public-key";
 ```
 
 Teachers can then use the same Class Code and PIN from school or home.
+
+## Administration
+
+Run the latest `supabase-schema.sql` in Supabase to add the admin table and `pb_admin_list_classes` function.
+
+The default admin PIN is:
+
+```text
+2468
+```
+
+Change it by replacing the `admin_hash` value in `piggy_bank_admin_settings`. The hash is SHA-256 of:
+
+```text
+PIGGYBANK-ADMIN:your-pin
+```
 
 ## Render
 
