@@ -1,0 +1,628 @@
+:root {
+  --ink: #263238;
+  --muted: #66737a;
+  --paper: #fffaf0;
+  --panel: #ffffff;
+  --line: #e5d8be;
+  --yellow: #f7b733;
+  --green: #35a875;
+  --red: #ef6f6c;
+  --blue: #4f8bd9;
+  --pink: #f7a8b8;
+  --shadow: 0 18px 50px rgba(56, 45, 24, 0.14);
+  color-scheme: light;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  background:
+    linear-gradient(135deg, rgba(79, 139, 217, 0.14), transparent 34%),
+    linear-gradient(225deg, rgba(53, 168, 117, 0.12), transparent 28%),
+    var(--paper);
+  color: var(--ink);
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.topbar {
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: auto auto;
+  align-items: center;
+  justify-items: center;
+  justify-content: stretch;
+  gap: 14px;
+  padding: 22px clamp(16px, 4vw, 42px) 18px;
+  border-bottom: 1px solid rgba(112, 89, 49, 0.16);
+  text-align: center;
+}
+
+.brand {
+  display: flex;
+  grid-row: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 22px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.brand-logo {
+  display: block;
+  width: clamp(260px, 28vw, 360px);
+  height: clamp(260px, 28vw, 360px);
+  object-fit: contain;
+  filter: drop-shadow(4px 5px 0 rgba(38, 50, 56, 0.14));
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.brand h1 {
+  font-size: clamp(1.6rem, 4vw, 2.3rem);
+  line-height: 1.1;
+}
+
+.brand p,
+.section-heading p,
+.empty-state p {
+  color: var(--muted);
+}
+
+.toolbar {
+  display: flex;
+  grid-row: 2;
+  justify-content: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-weight: 900;
+  box-shadow: 3px 3px 0 rgba(38, 50, 56, 0.2);
+}
+
+.import-button input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(320px, 1fr) minmax(290px, 390px);
+  gap: 18px;
+  padding: 18px clamp(16px, 4vw, 42px) 36px;
+}
+
+.class-panel,
+.detail-panel {
+  align-self: start;
+  position: sticky;
+  top: 16px;
+}
+
+.class-panel,
+.detail-panel,
+.student-area {
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(112, 89, 49, 0.18);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+}
+
+.class-panel,
+.detail-panel {
+  padding: 16px;
+}
+
+.teacher-card,
+.add-student,
+.money-pad {
+  display: grid;
+  gap: 8px;
+}
+
+label,
+legend,
+.eyebrow,
+.balance-label {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+
+input,
+select {
+  min-width: 0;
+  width: 100%;
+  border: 2px solid rgba(38, 50, 56, 0.22);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 11px 12px;
+}
+
+input:focus,
+select:focus,
+button:focus-visible {
+  outline: 4px solid rgba(79, 139, 217, 0.32);
+  outline-offset: 2px;
+}
+
+.add-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.primary-button,
+.quick-actions button,
+.detail-actions button,
+.transaction-row button {
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  padding: 11px 14px;
+  background: var(--yellow);
+  color: var(--ink);
+  font-weight: 900;
+  box-shadow: 3px 3px 0 rgba(38, 50, 56, 0.24);
+}
+
+.quick-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.quick-actions button {
+  width: 100%;
+  background: #fff3be;
+  text-align: left;
+}
+
+.student-area {
+  min-width: 0;
+  padding: 16px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.section-heading h2,
+.detail-head h2 {
+  font-size: clamp(1.35rem, 3vw, 1.9rem);
+}
+
+.segmented {
+  display: inline-grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 4px;
+  border: 2px solid rgba(38, 50, 56, 0.18);
+  border-radius: 8px;
+  background: #f5eddc;
+}
+
+.segmented button {
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  padding: 8px 10px;
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.segmented .active {
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: 0 2px 10px rgba(56, 45, 24, 0.12);
+}
+
+.students-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.student-card {
+  min-width: 0;
+}
+
+.student-button {
+  display: grid;
+  grid-template-rows: 96px auto auto 28px;
+  gap: 8px;
+  width: 100%;
+  min-height: 190px;
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  padding: 14px;
+  text-align: center;
+  box-shadow: 5px 5px 0 rgba(38, 50, 56, 0.18);
+}
+
+.student-button.active {
+  background: #fff5cf;
+  box-shadow: 5px 5px 0 var(--yellow);
+}
+
+.pig-jar {
+  display: block;
+  margin: 0 auto;
+  background: transparent url("assets/balance-pig.png") center / contain no-repeat;
+  border: 0;
+}
+
+.mini-pig {
+  display: block;
+  width: 118px;
+  height: 92px;
+  margin: 0 auto;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  object-fit: contain;
+  filter: drop-shadow(0 3px 0 rgba(38, 50, 56, 0.14));
+}
+
+.big-pig {
+  display: block;
+  width: 220px;
+  height: 144px;
+  margin-bottom: 16px;
+  object-fit: contain;
+  filter: drop-shadow(0 5px 0 rgba(38, 50, 56, 0.14));
+}
+
+.student-name {
+  overflow-wrap: anywhere;
+  font-size: 1.08rem;
+  font-weight: 900;
+}
+
+.student-balance {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.coin-dots {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  min-height: 24px;
+}
+
+.coin-dots i,
+.jar-coin {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #a26900;
+  border-radius: 50%;
+  background: var(--yellow);
+}
+
+.empty-state {
+  display: grid;
+  min-height: 360px;
+  place-content: center;
+  text-align: center;
+  padding: 24px;
+}
+
+.empty-state h2 {
+  margin-bottom: 8px;
+}
+
+.student-detail {
+  display: grid;
+  gap: 16px;
+}
+
+.detail-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.balance-card {
+  display: grid;
+  grid-template-columns: 110px 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 14px;
+  border: 2px solid rgba(38, 50, 56, 0.18);
+  border-radius: 8px;
+  background: #fff5cf;
+}
+
+.pig-jar {
+  position: relative;
+  width: 132px;
+  height: 104px;
+}
+
+.pig-jar .jar-coin {
+  position: absolute;
+  width: 19px;
+  height: 19px;
+  border-width: 3px;
+  box-shadow: 0 2px 0 rgba(112, 69, 0, 0.22);
+}
+
+.balance-card strong {
+  display: block;
+  font-size: clamp(3rem, 8vw, 4.6rem);
+  line-height: 0.9;
+}
+
+.coin-word {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.money-pad fieldset {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.amount-buttons {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.amount-buttons button {
+  min-height: 48px;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: var(--panel);
+  font-size: 1.2rem;
+  font-weight: 900;
+}
+
+.amount-buttons button.active {
+  background: var(--yellow);
+}
+
+.transaction-row,
+.detail-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.earn-button {
+  background: var(--green) !important;
+  color: #fff !important;
+}
+
+.spend-button {
+  background: var(--red) !important;
+  color: #fff !important;
+}
+
+.detail-actions {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.detail-actions button {
+  background: #eaf2ff;
+  padding-inline: 8px;
+}
+
+.statement {
+  display: grid;
+  gap: 10px;
+}
+
+.statement h3 {
+  font-size: 1rem;
+}
+
+.statement ol {
+  display: grid;
+  max-height: 260px;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.statement li {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 8px;
+  align-items: center;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  border: 1px solid rgba(112, 89, 49, 0.14);
+}
+
+.statement .plus {
+  color: var(--green);
+}
+
+.statement .minus {
+  color: var(--red);
+}
+
+.scanner-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(38, 50, 56, 0.46);
+}
+
+.scanner-card {
+  display: grid;
+  width: min(540px, 100%);
+  gap: 14px;
+  padding: 16px;
+  border: 3px solid var(--ink);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
+}
+
+.scanner-card video {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  background: #111;
+  object-fit: cover;
+}
+
+.scanner-card p {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.story-view .student-button {
+  grid-template-rows: 52px auto auto;
+  min-height: 156px;
+}
+
+.story-view .coin-dots {
+  display: none;
+}
+
+@media (max-width: 1120px) {
+  .app-shell {
+    grid-template-columns: 260px 1fr;
+  }
+
+  .detail-panel {
+    grid-column: 1 / -1;
+    position: static;
+  }
+}
+
+@media (max-width: 760px) {
+  .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .topbar {
+    align-items: center;
+    padding-top: 24px;
+  }
+
+  .brand-logo {
+    width: min(78vw, 280px);
+    height: min(78vw, 280px);
+  }
+
+  .brand {
+    align-items: center;
+    gap: 8px;
+  }
+
+  .toolbar {
+    justify-content: center;
+  }
+
+  .app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .class-panel {
+    position: static;
+  }
+
+  .students-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 460px) {
+  .brand {
+    flex-direction: column;
+  }
+
+  .students-grid,
+  .balance-card {
+    grid-template-columns: 1fr;
+  }
+
+  .add-row,
+  .transaction-row,
+  .detail-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .topbar,
+  .class-panel,
+  .student-area,
+  .detail-panel {
+    display: none !important;
+  }
+
+  body.printing-cards #printSheet {
+    display: grid !important;
+  }
+}
+
+#printSheet {
+  display: none;
+}

@@ -1,8 +1,4 @@
 const STORAGE_KEY = "piggy-bank-state-v1";
-const CLOUD_STORAGE_KEY = "piggy-bank-cloud-v1";
-const ADMIN_STORAGE_KEY = "piggy-bank-admin-v1";
-const SUPABASE_URL = "https://uivypttuhigwiyvgsuuv.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_5FUAhDgS1Sd60IIUP3nMIw_vz3L6gtR";
 
 const starterState = {
   teacher: "Ms. Sunny",
@@ -38,24 +34,11 @@ let state = loadState();
 let chosenAmount = 1;
 let scannerStream = null;
 let scannerLoop = 0;
-let cloud = loadCloudSettings();
-let admin = loadAdminSettings();
-let cloudSaveTimer = 0;
 
 const dom = {
   teacherName: document.querySelector("#teacherName"),
   studentForm: document.querySelector("#studentForm"),
   studentName: document.querySelector("#studentName"),
-  cloudForm: document.querySelector("#cloudForm"),
-  classCode: document.querySelector("#classCode"),
-  classPin: document.querySelector("#classPin"),
-  cloudStatus: document.querySelector("#cloudStatus"),
-  syncNow: document.querySelector("#syncNow"),
-  adminForm: document.querySelector("#adminForm"),
-  adminPin: document.querySelector("#adminPin"),
-  adminStatus: document.querySelector("#adminStatus"),
-  adminRefresh: document.querySelector("#adminRefresh"),
-  adminClasses: document.querySelector("#adminClasses"),
   studentsGrid: document.querySelector("#studentsGrid"),
   classSummary: document.querySelector("#classSummary"),
   template: document.querySelector("#studentCardTemplate"),
@@ -78,6 +61,7 @@ const dom = {
   resetStudent: document.querySelector("#resetStudent"),
   printOne: document.querySelector("#printOne"),
   printCards: document.querySelector("#printCards"),
+  downloadDogTag: document.querySelector("#downloadDogTag"),
   downloadSvg: document.querySelector("#downloadSvg"),
   exportData: document.querySelector("#exportData"),
   importData: document.querySelector("#importData"),
@@ -105,35 +89,6 @@ function loadState() {
   }
 }
 
-function loadCloudSettings() {
-  const saved = localStorage.getItem(CLOUD_STORAGE_KEY);
-  if (!saved) return { classCode: "", pinHash: "", connected: false };
-  try {
-    return { classCode: "", pinHash: "", connected: false, ...JSON.parse(saved) };
-  } catch {
-    return { classCode: "", pinHash: "", connected: false };
-  }
-}
-
-function saveCloudSettings() {
-  localStorage.setItem(CLOUD_STORAGE_KEY, JSON.stringify(cloud));
-}
-
-function loadAdminSettings() {
-  const saved = localStorage.getItem(ADMIN_STORAGE_KEY);
-  if (!saved) return { pinHash: "", connected: false, classes: [] };
-  try {
-    return { pinHash: "", connected: false, classes: [], ...JSON.parse(saved) };
-  } catch {
-    return { pinHash: "", connected: false, classes: [] };
-  }
-}
-
-function saveAdminSettings() {
-  const { classes, ...settings } = admin;
-  localStorage.setItem(ADMIN_STORAGE_KEY, JSON.stringify(settings));
-}
-
 function selectStudentFromUrl() {
   const id = new URLSearchParams(location.search).get("student");
   if (id && state.students.some((student) => student.id === id)) {
@@ -143,7 +98,6 @@ function selectStudentFromUrl() {
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  scheduleCloudSave();
 }
 
 function selectedStudent() {
@@ -160,81 +114,11 @@ function selectStudentById(id) {
 
 function render() {
   dom.teacherName.value = state.teacher;
-  dom.classCode.value = cloud.classCode || "";
   dom.studentsGrid.classList.toggle("story-view", state.view === "story");
   renderSummary();
   renderStudents();
   renderDetail();
-  renderCloudStatus();
-  renderAdminStatus();
-  renderAdminClasses();
   saveState();
-}
-
-function renderCloudStatus(message) {
-  if (!cloudConfigured()) {
-    dom.cloudStatus.textContent = "Cloud setup needed";
-    dom.cloudStatus.className = "offline";
-    return;
-  }
-  if (message) {
-    dom.cloudStatus.textContent = message;
-    return;
-  }
-  dom.cloudStatus.textContent = cloud.connected && cloud.classCode
-    ? `Connected: ${cloud.classCode}`
-    : "Not connected";
-  dom.cloudStatus.className = cloud.connected ? "online" : "offline";
-}
-
-function renderAdminStatus(message) {
-  if (!cloudConfigured()) {
-    dom.adminStatus.textContent = "Cloud setup needed";
-    dom.adminStatus.className = "offline";
-    return;
-  }
-  if (message) {
-    dom.adminStatus.textContent = message;
-    return;
-  }
-  dom.adminStatus.textContent = admin.connected ? "Admin connected" : "Admin locked";
-  dom.adminStatus.className = admin.connected ? "online" : "offline";
-}
-
-function renderAdminClasses() {
-  dom.adminClasses.hidden = !admin.connected;
-  dom.adminClasses.replaceChildren();
-  if (!admin.connected) return;
-
-  if (!admin.classes.length) {
-    const empty = document.createElement("p");
-    empty.className = "admin-empty";
-    empty.textContent = "No cloud classes found yet.";
-    dom.adminClasses.append(empty);
-    return;
-  }
-
-  admin.classes.forEach((classRecord) => {
-    const classState = classRecord.state || {};
-    const students = Array.isArray(classState.students) ? classState.students : [];
-    const total = students.reduce((sum, student) => sum + (Number(student.balance) || 0), 0);
-    const updated = classRecord.updated_at ? new Date(classRecord.updated_at).toLocaleString() : "Not synced";
-    const item = document.createElement("article");
-    item.className = "admin-class";
-    item.dataset.classCode = classRecord.class_code;
-    item.innerHTML = `
-      <div>
-        <strong>${escapeHtml(classRecord.class_code)}</strong>
-        <span>${escapeHtml(classState.teacher || "Unnamed teacher")}</span>
-        <small>${students.length} savers, ${total} coins - ${escapeHtml(updated)}</small>
-      </div>
-      <div class="admin-class-actions">
-        <button type="button" data-admin-action="json">JSON</button>
-        <button type="button" data-admin-action="svg">SVG</button>
-      </div>
-    `;
-    dom.adminClasses.append(item);
-  });
 }
 
 function renderSummary() {
@@ -363,33 +247,6 @@ function createCardSvg(student) {
 </svg>`;
 }
 
-function placeSvg(svg, x, y) {
-  return svg.replace("<svg ", `<svg x="${x}" y="${y}" `);
-}
-
-function createCardSheetSvg(students) {
-  const cardWidth = 360;
-  const cardHeight = 220;
-  const margin = 24;
-  const gap = 18;
-  const columns = 2;
-  const rows = Math.max(1, Math.ceil(students.length / columns));
-  const width = margin * 2 + columns * cardWidth + (columns - 1) * gap;
-  const height = margin * 2 + rows * cardHeight + (rows - 1) * gap;
-  const cards = students.map((student, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    const x = margin + column * (cardWidth + gap);
-    const y = margin + row * (cardHeight + gap);
-    return placeSvg(createCardSvg(student), x, y);
-  }).join("\n");
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <rect width="${width}" height="${height}" fill="#ffffff"/>
-${cards}
-</svg>`;
-}
-
 function firstName(name) {
   return name.trim().split(/\s+/)[0] || name;
 }
@@ -408,23 +265,32 @@ function studentQrValue(student) {
 }
 
 function dogTagShape(fill = "none", stroke = "#111111") {
-  return `<path d="M54 4H156C179 4 198 23 198 46V314C198 337 179 356 156 356H54C31 356 12 337 12 314V46C12 23 31 4 54 4Z" fill="${fill}" stroke="${stroke}" stroke-width="4"/>`;
+  return `<path d="M46 12H314C337 12 356 31 356 54V156C356 179 337 198 314 198H46C23 198 4 179 4 156V54C4 31 23 12 46 12Z" fill="${fill}" stroke="${stroke}" stroke-width="4"/>`;
 }
 
-function dogTagNameLines(name) {
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  if (words.length <= 1 || name.length <= 13) return [name.trim()];
-  const midpoint = Math.ceil(words.length / 2);
-  return [words.slice(0, midpoint).join(" "), words.slice(midpoint).join(" ")];
+async function createDogTagFrontSvg(student) {
+  const logo = await logoDataUrl();
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="3.6in" height="2.1in" viewBox="0 0 360 210">
+  <defs>
+    <clipPath id="tagClip">${dogTagShape("#ffffff", "none")}</clipPath>
+  </defs>
+  ${dogTagShape("#ffffff", "#111111")}
+  <circle cx="36" cy="105" r="13" fill="#ffffff" stroke="#111111" stroke-width="4"/>
+  <image href="${logo}" x="82" y="18" width="196" height="174" preserveAspectRatio="xMidYMid meet" clip-path="url(#tagClip)"/>
+  <text x="180" y="192" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#111111">${escapeXml(firstName(student.name))}</text>
+</svg>`;
 }
 
-function dogTagNameSvg(name, x, y, maxWidth, fontSize = 27, lineHeight = 30) {
-  const lines = dogTagNameLines(name);
-  const startY = y - ((lines.length - 1) * lineHeight) / 2;
-  return lines.map((line, index) => {
-    const textLength = line.length > 13 ? ` textLength="${maxWidth}" lengthAdjust="spacingAndGlyphs"` : "";
-    return `<text x="${x}" y="${startY + index * lineHeight}" text-anchor="middle" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="900" fill="#111111"${textLength}>${escapeXml(line)}</text>`;
-  }).join("");
+function createDogTagBackSvg(student) {
+  const qr = qrSvg(studentQrValue(student), 197, 47, 116);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="3.6in" height="2.1in" viewBox="0 0 360 210">
+  ${dogTagShape("#ffffff", "#111111")}
+  <circle cx="36" cy="105" r="13" fill="#ffffff" stroke="#111111" stroke-width="4"/>
+  <text x="112" y="93" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" font-weight="900" fill="#111111">${escapeXml(firstName(student.name))}</text>
+  <text x="112" y="124" text-anchor="middle" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111111">Piggy Bank</text>
+  <rect x="187" y="37" width="136" height="136" rx="8" fill="#ffffff" stroke="#111111" stroke-width="3"/>
+  ${qr}
+</svg>`;
 }
 
 async function logoDataUrl() {
@@ -437,80 +303,12 @@ async function logoDataUrl() {
   });
 }
 
-async function blackWhiteLogoDataUrl() {
-  const source = await logoDataUrl();
-  return new Promise((resolve) => {
-    const image = new Image();
-    image.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = image.naturalWidth;
-      canvas.height = image.naturalHeight;
-      const context = canvas.getContext("2d");
-      context.drawImage(image, 0, 0);
-      const pixels = context.getImageData(0, 0, canvas.width, canvas.height);
-      for (let index = 0; index < pixels.data.length; index += 4) {
-        const alpha = pixels.data[index + 3];
-        const brightness = pixels.data[index] * 0.299 + pixels.data[index + 1] * 0.587 + pixels.data[index + 2] * 0.114;
-        const value = alpha < 24 || brightness > 205 ? 255 : 0;
-        pixels.data[index] = value;
-        pixels.data[index + 1] = value;
-        pixels.data[index + 2] = value;
-        pixels.data[index + 3] = alpha < 24 ? 0 : 255;
-      }
-      context.putImageData(pixels, 0, 0);
-      resolve(canvas.toDataURL("image/png"));
-    };
-    image.onerror = () => resolve(source);
-    image.src = source;
-  });
-}
-
-function svgId(value) {
-  return fileSlug(value).replace(/^-?(\d)/, "student-$1");
-}
-
-function createXtoolFrontGroup(student, logo, id) {
-  return `<g id="${id}-front" transform="translate(0 0)">
-  <image href="${logo}" xlink:href="${logo}" x="34" y="46" width="142" height="170" preserveAspectRatio="xMidYMid meet"/>
-  ${dogTagNameSvg(student.name, 105, 265, 160, 19, 23)}
-</g>`;
-}
-
-function createXtoolBackGroup(student, id) {
-  return `<g id="${id}-back" transform="translate(0 0)">
-  ${dogTagNameSvg(student.name, 105, 52, 160, 25, 29)}
-  <text x="105" y="91" text-anchor="middle" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#111111">Piggy Bank</text>
-  ${qrSvg(studentQrValue(student), 46, 118, 118)}
-</g>`;
-}
-
-async function createXtoolSvgSheet(students) {
-  const tagWidth = 210;
-  const tagHeight = 300;
-  const margin = 24;
-  const sideGap = 24;
-  const studentGap = 36;
-  const rowGap = 30;
-  const pairsPerRow = 2;
-  const pairWidth = tagWidth * 2 + sideGap;
-  const rows = Math.max(1, Math.ceil(students.length / pairsPerRow));
-  const width = margin * 2 + pairsPerRow * pairWidth + (pairsPerRow - 1) * studentGap;
-  const height = margin * 2 + rows * tagHeight + (rows - 1) * rowGap;
-  const logo = await blackWhiteLogoDataUrl();
-  const groups = students.map((student, index) => {
-    const column = index % pairsPerRow;
-    const row = Math.floor(index / pairsPerRow);
-    const x = margin + column * (pairWidth + studentGap);
-    const y = margin + row * (tagHeight + rowGap);
-    const id = svgId(student.name || student.id);
-    const front = createXtoolFrontGroup(student, logo, id).replace('transform="translate(0 0)"', `transform="translate(${x} ${y})"`);
-    const back = createXtoolBackGroup(student, id).replace('transform="translate(0 0)"', `transform="translate(${x + tagWidth + sideGap} ${y})"`);
-    return `${front}\n${back}`;
-  }).join("\n");
-
-  return `<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-${groups}
-</svg>`;
+async function downloadDogTags(student) {
+  const slug = fileSlug(firstName(student.name));
+  download(`${slug}-dog-tag-front.svg`, await createDogTagFrontSvg(student), "image/svg+xml");
+  setTimeout(() => {
+    download(`${slug}-dog-tag-back.svg`, createDogTagBackSvg(student), "image/svg+xml");
+  }, 200);
 }
 
 function studentIdFromQr(value) {
@@ -793,199 +591,6 @@ function download(filename, content, type) {
   URL.revokeObjectURL(url);
 }
 
-function cloudConfigured() {
-  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
-}
-
-function normalizeClassCode(value) {
-  return value.trim().toUpperCase().replace(/[^A-Z0-9-]+/g, "-").replace(/^-|-$/g, "");
-}
-
-async function hashPin(classCode, pin) {
-  const payload = `${classCode}:${pin}`;
-  const bytes = new TextEncoder().encode(payload);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-async function hashAdminPin(pin) {
-  const bytes = new TextEncoder().encode(`PIGGYBANK-ADMIN:${pin}`);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function exportCloudState() {
-  return {
-    teacher: state.teacher,
-    selectedId: state.selectedId,
-    view: state.view,
-    students: state.students
-  };
-}
-
-async function supabaseRpc(functionName, payload) {
-  const base = SUPABASE_URL.replace(/\/$/, "");
-  const response = await fetch(`${base}/rest/v1/rpc/${functionName}`, {
-    method: "POST",
-    headers: {
-      apikey: SUPABASE_ANON_KEY,
-      Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify(payload)
-  });
-  if (!response.ok) throw new Error(`Cloud request failed: ${response.status}`);
-  return response.json();
-}
-
-async function connectCloud(event) {
-  event.preventDefault();
-  if (!cloudConfigured()) {
-    renderCloudStatus("Add Supabase URL/key");
-    return;
-  }
-
-  const classCode = normalizeClassCode(dom.classCode.value);
-  const pin = dom.classPin.value.trim();
-  if (!classCode || pin.length < 4) {
-    renderCloudStatus("Class code + 4 digit PIN");
-    return;
-  }
-
-  renderCloudStatus("Connecting...");
-  const pinHash = await hashPin(classCode, pin);
-  try {
-    const result = await supabaseRpc("pb_load_class", {
-      p_class_code: classCode,
-      p_pin_hash: pinHash
-    });
-
-    if (result.status === "bad_pin") {
-      renderCloudStatus("Wrong PIN");
-      return;
-    }
-
-    cloud = { classCode, pinHash, connected: true };
-    saveCloudSettings();
-
-    if (result.status === "found" && result.state) {
-      state = { ...structuredClone(starterState), ...result.state };
-      state.selectedId = state.students.some((student) => student.id === state.selectedId)
-        ? state.selectedId
-        : state.students[0]?.id || "";
-      render();
-      renderCloudStatus("Loaded from cloud");
-      return;
-    }
-
-    await saveCloudNow("Created cloud class");
-    render();
-  } catch {
-    renderCloudStatus("Cloud unavailable");
-  }
-}
-
-async function loginAdmin(event) {
-  event.preventDefault();
-  if (!cloudConfigured()) {
-    renderAdminStatus("Add Supabase URL/key");
-    return;
-  }
-
-  const pin = dom.adminPin.value.trim();
-  if (pin.length < 4) {
-    renderAdminStatus("Enter admin PIN");
-    return;
-  }
-
-  admin.pinHash = await hashAdminPin(pin);
-  admin.connected = true;
-  saveAdminSettings();
-  dom.adminPin.value = "";
-  await refreshAdminClasses("Admin connected");
-}
-
-async function refreshAdminClasses(successMessage = "Admin refreshed") {
-  if (!cloudConfigured()) {
-    renderAdminStatus("Add Supabase URL/key");
-    return;
-  }
-  if (!admin.connected || !admin.pinHash) {
-    renderAdminStatus("Admin login first");
-    return;
-  }
-
-  renderAdminStatus("Loading classes...");
-  try {
-    const result = await supabaseRpc("pb_admin_list_classes", {
-      p_admin_hash: admin.pinHash
-    });
-    if (result.status === "bad_admin") {
-      admin = { pinHash: "", connected: false, classes: [] };
-      saveAdminSettings();
-      renderAdminStatus("Wrong admin PIN");
-      renderAdminClasses();
-      return;
-    }
-
-    admin.classes = Array.isArray(result.classes) ? result.classes : [];
-    renderAdminClasses();
-    renderAdminStatus(successMessage);
-  } catch {
-    renderAdminStatus("Admin unavailable");
-  }
-}
-
-function adminClassByCode(classCode) {
-  return admin.classes.find((classRecord) => classRecord.class_code === classCode) || null;
-}
-
-async function downloadAdminClassFile(classRecord, action) {
-  const classState = classRecord.state || {};
-  const slug = fileSlug(classRecord.class_code || classState.teacher || "class");
-  if (action === "json") {
-    download(`${slug}-piggy-bank-data.json`, JSON.stringify(classState, null, 2), "application/json");
-    return;
-  }
-  if (action === "svg") {
-    const students = Array.isArray(classState.students) ? classState.students : [];
-    if (!students.length) {
-      renderAdminStatus("No savers to export");
-      return;
-    }
-    download(`${slug}-xtool-sheet.svg`, await createXtoolSvgSheet(students), "image/svg+xml");
-  }
-}
-
-function scheduleCloudSave() {
-  if (!cloudConfigured() || !cloud.connected || !cloud.classCode || !cloud.pinHash) return;
-  clearTimeout(cloudSaveTimer);
-  cloudSaveTimer = setTimeout(() => saveCloudNow(), 900);
-}
-
-async function saveCloudNow(successMessage = "Synced") {
-  if (!cloudConfigured()) {
-    renderCloudStatus("Add Supabase URL/key");
-    return;
-  }
-  if (!cloud.connected || !cloud.classCode || !cloud.pinHash) {
-    renderCloudStatus("Connect first");
-    return;
-  }
-
-  renderCloudStatus("Syncing...");
-  try {
-    const result = await supabaseRpc("pb_save_class", {
-      p_class_code: cloud.classCode,
-      p_pin_hash: cloud.pinHash,
-      p_state: exportCloudState()
-    });
-    renderCloudStatus(result.status === "saved" ? successMessage : "Cloud error");
-  } catch {
-    renderCloudStatus("Cloud unavailable");
-  }
-}
-
 function printCards(students) {
   document.querySelector("#printSheet")?.remove();
   const sheet = document.createElement("main");
@@ -1003,31 +608,6 @@ function printCards(students) {
 dom.teacherName.addEventListener("input", () => {
   state.teacher = dom.teacherName.value;
   saveState();
-});
-
-dom.cloudForm.addEventListener("submit", (event) => {
-  connectCloud(event);
-});
-
-dom.syncNow.addEventListener("click", () => {
-  saveCloudNow();
-});
-
-dom.adminForm.addEventListener("submit", (event) => {
-  loginAdmin(event);
-});
-
-dom.adminRefresh.addEventListener("click", () => {
-  refreshAdminClasses();
-});
-
-dom.adminClasses.addEventListener("click", async (event) => {
-  const button = event.target.closest("[data-admin-action]");
-  const item = event.target.closest(".admin-class");
-  if (!button || !item) return;
-  const classRecord = adminClassByCode(item.dataset.classCode);
-  if (!classRecord) return;
-  await downloadAdminClassFile(classRecord, button.dataset.adminAction);
 });
 
 dom.scanCode.addEventListener("click", () => {
@@ -1099,9 +679,16 @@ dom.printCards.addEventListener("click", () => {
   printCards(state.students);
 });
 
-dom.downloadSvg.addEventListener("click", async () => {
-  if (!state.students.length) return;
-  download("piggy-bank-xtool-sheet.svg", await createXtoolSvgSheet(state.students), "image/svg+xml");
+dom.downloadSvg.addEventListener("click", () => {
+  const student = selectedStudent();
+  if (!student) return;
+  download(`${fileSlug(student.name)}-piggy-card.svg`, createCardSvg(student), "image/svg+xml");
+});
+
+dom.downloadDogTag.addEventListener("click", () => {
+  const student = selectedStudent();
+  if (!student) return;
+  downloadDogTags(student);
 });
 
 dom.exportData.addEventListener("click", () => {

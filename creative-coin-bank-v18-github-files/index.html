@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7b733">
+    <title>Piggy Bank</title>
+    <link rel="manifest" href="manifest.webmanifest?v=18">
+    <link rel="stylesheet" href="styles.css?v=18">
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand" aria-label="Piggy Bank home">
+        <img class="brand-logo" src="assets/creative-coin-logo.png" alt="Creative Coin piggy bank logo">
+        <div>
+          <h1>Piggy Bank</h1>
+          <p>Classroom money, made tiny-hands simple</p>
+        </div>
+      </div>
+      <div class="toolbar" role="toolbar" aria-label="Class tools">
+        <button class="icon-button" id="scanCode" type="button" title="Scan QR" aria-label="Scan QR">
+          <span aria-hidden="true">⌖</span>
+        </button>
+        <button class="icon-button" id="printCards" type="button" title="Print cards" aria-label="Print cards">
+          <span aria-hidden="true">▣</span>
+        </button>
+        <button class="icon-button" id="exportData" type="button" title="Download data" aria-label="Download data">
+          <span aria-hidden="true">↓</span>
+        </button>
+        <label class="icon-button import-button" title="Import data" aria-label="Import data">
+          <span aria-hidden="true">↑</span>
+          <input id="importData" type="file" accept="application/json">
+        </label>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <section class="class-panel" aria-label="Class setup">
+        <div class="teacher-card">
+          <label for="teacherName">Teacher</label>
+          <input id="teacherName" type="text" autocomplete="off">
+        </div>
+
+        <form class="add-student" id="studentForm">
+          <label for="studentName">New saver</label>
+          <div class="add-row">
+            <input id="studentName" type="text" autocomplete="off" placeholder="Student name">
+            <button class="primary-button" type="submit">Add</button>
+          </div>
+        </form>
+
+        <div class="quick-actions" aria-label="Quick saver actions">
+          <button type="button" data-class-action="bonus">Happy Helper +5</button>
+          <button type="button" data-class-action="payday">Payday +10</button>
+          <button type="button" data-class-action="cleanup">Clean Up +2</button>
+        </div>
+      </section>
+
+      <section class="student-area" aria-label="Student piggy banks">
+        <div class="section-heading">
+          <div>
+            <h2>Little Savers</h2>
+            <p id="classSummary">0 savers, 0 Creative Coins saved</p>
+          </div>
+          <div class="segmented" role="tablist" aria-label="View">
+            <button type="button" class="active" data-view="banks">Banks</button>
+            <button type="button" data-view="story">Story</button>
+          </div>
+        </div>
+        <div class="students-grid" id="studentsGrid"></div>
+      </section>
+
+      <aside class="detail-panel" aria-label="Piggy details">
+        <div id="emptyState" class="empty-state">
+          <img class="big-pig" src="assets/little-saver-pig-icon.png" alt="">
+          <h2>Pick a saver</h2>
+          <p>Tap a student card to add Creative Coins, spend Creative Coins, print a card, or see their money story.</p>
+        </div>
+
+        <div id="studentDetail" class="student-detail" hidden>
+          <div class="detail-head">
+            <div>
+              <p class="eyebrow">Piggy bank</p>
+              <h2 id="detailName"></h2>
+            </div>
+            <button class="icon-button" id="deleteStudent" type="button" title="Delete saver" aria-label="Delete saver">
+              <span aria-hidden="true">×</span>
+            </button>
+          </div>
+
+          <div class="balance-card">
+            <div class="pig-jar" id="detailJar" aria-hidden="true"></div>
+            <div>
+              <span class="balance-label">Saved</span>
+              <strong id="detailBalance">0</strong>
+              <span class="coin-word">Creative Coins</span>
+            </div>
+          </div>
+
+          <form class="money-pad" id="moneyForm">
+            <fieldset>
+              <legend>Creative Coins</legend>
+              <div class="amount-buttons">
+                <button type="button" data-amount="1">1</button>
+                <button type="button" data-amount="2">2</button>
+                <button type="button" data-amount="5">5</button>
+                <button type="button" data-amount="10">10</button>
+              </div>
+              <input id="customAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="Other">
+            </fieldset>
+            <label for="reason">Why?</label>
+            <select id="reason">
+              <option>Kind Choice</option>
+              <option>Class Job</option>
+              <option>Reading Time</option>
+              <option>Helping Friend</option>
+              <option>Store Buy</option>
+              <option>Teacher Note</option>
+            </select>
+            <div class="transaction-row">
+              <button class="earn-button" type="submit" value="earn">Earn</button>
+              <button class="spend-button" type="submit" value="spend">Spend</button>
+            </div>
+          </form>
+
+          <div class="detail-actions">
+            <button type="button" id="printOne">Card</button>
+            <button type="button" id="downloadDogTag">Dog Tag</button>
+            <button type="button" id="downloadSvg">SVG</button>
+            <button type="button" id="resetStudent">Reset</button>
+          </div>
+
+          <section class="statement">
+            <h3>Money Story</h3>
+            <ol id="statementList"></ol>
+          </section>
+        </div>
+      </aside>
+    </main>
+
+    <div class="scanner-modal" id="scannerModal" hidden>
+      <div class="scanner-card" role="dialog" aria-modal="true" aria-labelledby="scannerTitle">
+        <div class="detail-head">
+          <div>
+            <p class="eyebrow">Camera</p>
+            <h2 id="scannerTitle">Scan Dog Tag</h2>
+          </div>
+          <button class="icon-button" id="closeScanner" type="button" title="Close scanner" aria-label="Close scanner">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+        <video id="scannerVideo" autoplay muted playsinline></video>
+        <p id="scannerStatus">Point the camera at a Piggy Bank QR code.</p>
+      </div>
+    </div>
+
+    <template id="studentCardTemplate">
+      <article class="student-card">
+        <button type="button" class="student-button">
+          <img class="mini-pig" src="assets/little-saver-pig-icon.png" alt="">
+          <span class="student-name"></span>
+          <strong class="student-balance"></strong>
+          <span class="coin-dots" aria-hidden="true"></span>
+        </button>
+      </article>
+    </template>
+
+    <script src="app.js?v=18"></script>
+  </body>
+</html>
